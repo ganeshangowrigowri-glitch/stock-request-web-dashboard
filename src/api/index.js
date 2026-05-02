@@ -133,3 +133,7 @@ export const getApprovedSummary = async (categoryId, filter) => {
 };
 
 export default api;
+export const getPresentSummary = async (categoryId, filter) => {
+  const response = await api.get(`/requests/present/summary?category_id=${categoryId}&filter=${filter}`);
+  return response.data;
+};
