@@ -138,17 +138,17 @@ export default function ShopManagementPage() {
 
   // ── Quick-toggle enable/disable directly from table ────────────────────────
   const handleQuickToggle = async (shop) => {
-    try {
-      await updateShopAccess(shop.id, {
-        access_enabled:    !shop.access_enabled,
-        access_start_date: shop.access_start_date ?? null,
-        access_end_date:   shop.access_end_date   ?? null,
-      });
-      fetchShops();
-    } catch {
-      alert('Failed to toggle shop access');
-    }
-  };
+  try {
+    await updateShopAccess(shop.id, {
+      access_enabled: !shop.access_enabled,
+      access_start_date: null,  // ← clear dates when toggling
+      access_end_date: null,    // ← clear dates when toggling
+    });
+    fetchShops();
+  } catch {
+    alert('Failed to toggle shop access');
+  }
+};
 
   // ─── render ────────────────────────────────────────────────────────────────
   return (
