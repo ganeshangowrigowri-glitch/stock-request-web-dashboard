@@ -5,6 +5,7 @@ import {
   TableContainer, TableHead, TableRow, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Chip, Switch, Tooltip, Divider, Stack,
+  FormGroup, FormControlLabel, Checkbox,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -14,16 +15,11 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { getShops, addShop, updateShop, deleteShop, updateShopAccess } from '../api/index';
 
-// ─── helpers ──────────────────────────────────────────────────────────────── 
+// ─── helpers ───────────────────────────────────────────────────────────────
 const today = () => new Date().toISOString().split('T')[0];
 
-/**
- * Returns the live access status of a shop based on DB fields.
- *  'active'   – enabled + inside date window (or no dates set)
- *  'expired'  – end_date passed
- *  'pending'  – start_date in the future
- *  'disabled' – access_enabled = false
- */
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
 function getAccessStatus(shop) {
   if (!shop.access_enabled) return 'disabled';
   const now = today();
@@ -39,22 +35,23 @@ const STATUS_META = {
   disabled: { label: 'Disabled', color: 'default' },
 };
 
-// ─── component ───────────────────────────────────────────────────────────────
+// ─── component ────────────────────────────────────────────────────────────
 export default function ShopManagementPage() {
-  const [shops, setShops]           = useState([]);
-  const [openAdd, setOpenAdd]       = useState(false);
-  const [openEdit, setOpenEdit]     = useState(false);
-  const [openDelete, setOpenDelete] = useState(false);
-  const [openAccess, setOpenAccess] = useState(false);
-  const [newName, setNewName]       = useState('');
-  const [editName, setEditName]     = useState('');
+  const [shops, setShops]               = useState([]);
+  const [openAdd, setOpenAdd]           = useState(false);
+  const [openEdit, setOpenEdit]         = useState(false);
+  const [openDelete, setOpenDelete]     = useState(false);
+  const [openAccess, setOpenAccess]     = useState(false);
+  const [newName, setNewName]           = useState('');
+  const [editName, setEditName]         = useState('');
   const [selectedShop, setSelectedShop] = useState(null);
-  const [loading, setLoading]       = useState(false);
+  const [loading, setLoading]           = useState(false);
 
   // access-control form state
   const [accessEnabled, setAccessEnabled] = useState(true);
   const [accessStart, setAccessStart]     = useState('');
   const [accessEnd, setAccessEnd]         = useState('');
+  const [allowedDays, setAllowedDays]     = useState([]); // ← NEW
 
   useEffect(() => { fetchShops(); }, []);
 
@@ -67,7 +64,7 @@ export default function ShopManagementPage() {
     }
   };
 
-  // ── CRUD handlers ──────────────────────────────────────────────────────────
+  // ── CRUD handlers ─────────────────────────────────────────────────────────
   const handleAdd = async () => {
     if (!newName.trim()) return;
     try {
@@ -110,13 +107,21 @@ export default function ShopManagementPage() {
     }
   };
 
-  // ── Access control handler ─────────────────────────────────────────────────
+  // ── Access control handler ────────────────────────────────────────────────
   const openAccessDialog = (shop) => {
     setSelectedShop(shop);
     setAccessEnabled(shop.access_enabled ?? true);
     setAccessStart(shop.access_start_date ?? '');
     setAccessEnd(shop.access_end_date ?? '');
+    // ← NEW: parse allowed_days from DB string
+    setAllowedDays(shop.allowed_days ? shop.allowed_days.split(',').map(d => d.trim()) : []);
     setOpenAccess(true);
+  };
+
+  const handleDayToggle = (day) => {
+    setAllowedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
   };
 
   const handleSaveAccess = async () => {
@@ -126,6 +131,7 @@ export default function ShopManagementPage() {
         access_enabled:    accessEnabled,
         access_start_date: accessStart || null,
         access_end_date:   accessEnd   || null,
+        allowed_days:      allowedDays, // ← NEW
       });
       setOpenAccess(false);
       fetchShops();
@@ -136,21 +142,24 @@ export default function ShopManagementPage() {
     }
   };
 
-  // ── Quick-toggle enable/disable directly from table ────────────────────────
+  // ── Quick-toggle ──────────────────────────────────────────────────────────
   const handleQuickToggle = async (shop) => {
-  try {
-    await updateShopAccess(shop.id, {
-      access_enabled: !shop.access_enabled,
-      access_start_date: null,  // ← clear dates when toggling
-      access_end_date: null,    // ← clear dates when toggling
-    });
-    fetchShops();
-  } catch {
-    alert('Failed to toggle shop access');
-  }
-};
+    try {
+      await updateShopAccess(shop.id, {
+        access_enabled:    !shop.access_enabled,
+        access_start_date: null,
+        access_end_date:   null,
+        allowed_days:      shop.allowed_days
+          ? shop.allowed_days.split(',').map(d => d.trim())
+          : [],
+      });
+      fetchShops();
+    } catch {
+      alert('Failed to toggle shop access');
+    }
+  };
 
-  // ─── render ────────────────────────────────────────────────────────────────
+  // ─── render ───────────────────────────────────────────────────────────────
   return (
     <Box sx={{ p: 3, backgroundColor: '#f5f6fa', minHeight: '100vh' }}>
 
@@ -176,13 +185,13 @@ export default function ShopManagementPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['#', 'Shop Name', 'Access Window', 'Status', 'Actions'].map((h, idx) => (
+                  {['#', 'Shop Name', 'Access Window', 'Allowed Days', 'Status', 'Actions'].map((h, idx) => (
                     <TableCell
                       key={h}
-                      align={idx >= 3 ? 'center' : 'left'}
+                      align={idx >= 4 ? 'center' : 'left'}
                       sx={{ backgroundColor: '#1a3a5c', color: 'white', fontWeight: 600,
                             ...(idx === 0 && { width: 50 }),
-                            ...(idx === 4 && { width: 160 }) }}
+                            ...(idx === 5 && { width: 160 }) }}
                     >
                       {h}
                     </TableCell>
@@ -194,14 +203,15 @@ export default function ShopManagementPage() {
                 {shops.map((shop, i) => {
                   const status = getAccessStatus(shop);
                   const meta   = STATUS_META[status];
+                  const days   = shop.allowed_days
+                    ? shop.allowed_days.split(',').map(d => d.trim().charAt(0).toUpperCase() + d.trim().slice(1))
+                    : [];
 
                   return (
                     <TableRow key={shop.id} sx={{ backgroundColor: i % 2 === 0 ? 'white' : '#f9fafb' }}>
 
-                      {/* # */}
                       <TableCell sx={{ fontSize: 13, color: '#888' }}>{i + 1}</TableCell>
 
-                      {/* Shop Name */}
                       <TableCell sx={{ fontSize: 14, fontWeight: 500 }}>{shop.shop_name}</TableCell>
 
                       {/* Access Window */}
@@ -209,16 +219,34 @@ export default function ShopManagementPage() {
                         {shop.access_start_date || shop.access_end_date ? (
                           <Stack direction="row" spacing={0.5} alignItems="center">
                             <CalendarMonthIcon sx={{ fontSize: 14, color: '#1a3a5c' }} />
-                            <span>
-                              {shop.access_start_date ?? '—'} → {shop.access_end_date ?? '∞'}
-                            </span>
+                            <span>{shop.access_start_date ?? '—'} → {shop.access_end_date ?? '∞'}</span>
                           </Stack>
                         ) : (
                           <Typography variant="caption" color="text.disabled">No limit</Typography>
                         )}
                       </TableCell>
 
-                      {/* Status chip */}
+                      {/* Allowed Days — NEW column */}
+                      <TableCell sx={{ fontSize: 11, color: '#555' }}>
+                        {days.length > 0 ? (
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
+                            {days.map(d => (
+                              <Chip
+                                key={d}
+                                label={d.slice(0, 3)}
+                                size="small"
+                                sx={{ fontSize: 10, height: 20,
+                                      backgroundColor: d === 'Friday' ? '#e8f5e9' : '#e3f2fd',
+                                      color: d === 'Friday' ? '#2e7d32' : '#1565c0' }}
+                              />
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">All days</Typography>
+                        )}
+                      </TableCell>
+
+                      {/* Status */}
                       <TableCell align="center">
                         <Chip
                           label={meta.label}
@@ -230,7 +258,6 @@ export default function ShopManagementPage() {
 
                       {/* Actions */}
                       <TableCell align="center">
-                        {/* Quick enable/disable toggle */}
                         <Tooltip title={shop.access_enabled ? 'Disable access' : 'Enable access'}>
                           <Switch
                             size="small"
@@ -239,36 +266,22 @@ export default function ShopManagementPage() {
                             sx={{ mr: 0.5 }}
                           />
                         </Tooltip>
-
-                        {/* Access control (dates) */}
                         <Tooltip title="Access Control">
-                          <IconButton
-                            size="small"
-                            onClick={() => openAccessDialog(shop)}
-                            sx={{ color: '#7b68ee' }}
-                          >
+                          <IconButton size="small" onClick={() => openAccessDialog(shop)} sx={{ color: '#7b68ee' }}>
                             {shop.access_enabled ? <LockOpenIcon fontSize="small" /> : <LockIcon fontSize="small" />}
                           </IconButton>
                         </Tooltip>
-
-                        {/* Edit name */}
                         <Tooltip title="Edit Name">
-                          <IconButton
-                            size="small"
+                          <IconButton size="small"
                             onClick={() => { setSelectedShop(shop); setEditName(shop.shop_name); setOpenEdit(true); }}
-                            sx={{ color: '#1a3a5c' }}
-                          >
+                            sx={{ color: '#1a3a5c' }}>
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-
-                        {/* Delete */}
                         <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
+                          <IconButton size="small"
                             onClick={() => { setSelectedShop(shop); setOpenDelete(true); }}
-                            sx={{ color: '#c0392b' }}
-                          >
+                            sx={{ color: '#c0392b' }}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -279,7 +292,7 @@ export default function ShopManagementPage() {
 
                 {shops.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: '#aaa' }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4, color: '#aaa' }}>
                       No shops found. Add one to get started.
                     </TableCell>
                   </TableRow>
@@ -290,7 +303,7 @@ export default function ShopManagementPage() {
         </CardContent>
       </Card>
 
-      {/* ── Add Dialog ───────────────────────────────────────────────────────── */}
+      {/* ── Add Dialog ──────────────────────────────────────────────────────── */}
       <Dialog open={openAdd} onClose={() => setOpenAdd(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ color: '#1a3a5c', fontWeight: 600 }}>Add New Shop</DialogTitle>
         <DialogContent>
@@ -308,7 +321,7 @@ export default function ShopManagementPage() {
         </DialogActions>
       </Dialog>
 
-      {/* ── Edit Dialog ──────────────────────────────────────────────────────── */}
+      {/* ── Edit Dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ color: '#1a3a5c', fontWeight: 600 }}>Edit Shop Name</DialogTitle>
         <DialogContent>
@@ -370,24 +383,16 @@ export default function ShopManagementPage() {
 
           <Stack spacing={2}>
             <TextField
-              label="Access Start Date"
-              type="date"
-              size="small"
-              fullWidth
+              label="Access Start Date" type="date" size="small" fullWidth
               InputLabelProps={{ shrink: true }}
-              value={accessStart}
-              onChange={(e) => setAccessStart(e.target.value)}
+              value={accessStart} onChange={(e) => setAccessStart(e.target.value)}
               disabled={!accessEnabled}
               helperText="Leave blank for no start restriction"
             />
             <TextField
-              label="Access End Date"
-              type="date"
-              size="small"
-              fullWidth
+              label="Access End Date" type="date" size="small" fullWidth
               InputLabelProps={{ shrink: true }}
-              value={accessEnd}
-              onChange={(e) => setAccessEnd(e.target.value)}
+              value={accessEnd} onChange={(e) => setAccessEnd(e.target.value)}
               disabled={!accessEnabled}
               inputProps={{ min: accessStart || today() }}
               helperText="Leave blank for no expiry"
@@ -398,9 +403,7 @@ export default function ShopManagementPage() {
           {accessEnabled && (accessStart || accessEnd) && (
             <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, backgroundColor: '#fff8e1',
                        border: '1px solid #ffe082' }}>
-              <Typography fontSize={12} fontWeight={600} color="#e65100" mb={0.5}>
-                Preview
-              </Typography>
+              <Typography fontSize={12} fontWeight={600} color="#e65100" mb={0.5}>Preview</Typography>
               <Typography fontSize={12} color="#795548">
                 This shop can send requests
                 {accessStart ? ` from ${accessStart}` : ''}
@@ -411,14 +414,46 @@ export default function ShopManagementPage() {
               </Typography>
             </Box>
           )}
+
+          {/* ── NEW: Allowed Days ─────────────────────────────────────────── */}
+          <Divider sx={{ my: 2 }}>
+            <Typography variant="caption" color="text.secondary">Allowed Order Days</Typography>
+          </Divider>
+
+          <Typography fontSize={12} color="text.secondary" mb={1}>
+            Select days this shop can send orders. Leave all unchecked = all days allowed. Friday is always allowed for all shops.
+          </Typography>
+
+          <FormGroup row>
+            {DAYS.map(day => (
+              <FormControlLabel
+                key={day}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={allowedDays.includes(day)}
+                    onChange={() => handleDayToggle(day)}
+                    disabled={!accessEnabled || day === 'friday'}
+                    sx={{ color: '#1a3a5c', '&.Mui-checked': { color: '#1a3a5c' } }}
+                  />
+                }
+                label={
+                  <Typography fontSize={12}>
+                    {day.charAt(0).toUpperCase() + day.slice(1)}
+                    {day === 'friday' && ' ✓'}
+                  </Typography>
+                }
+              />
+            ))}
+          </FormGroup>
+          {/* ──────────────────────────────────────────────────────────────── */}
+
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setOpenAccess(false)}>Cancel</Button>
-          <Button
-            variant="contained" onClick={handleSaveAccess} disabled={loading}
-            sx={{ backgroundColor: '#1a3a5c' }}
-          >
+          <Button variant="contained" onClick={handleSaveAccess} disabled={loading}
+            sx={{ backgroundColor: '#1a3a5c' }}>
             Save Access Settings
           </Button>
         </DialogActions>
