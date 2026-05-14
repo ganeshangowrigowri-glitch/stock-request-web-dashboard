@@ -137,11 +137,13 @@ export const getPresentSummary = async (categoryId, filter) => {
   const response = await api.get(`/requests/present/summary?category_id=${categoryId}&filter=${filter}`);
   return response.data;
 };
-export const updateShopAccess = async (id, { access_enabled, access_start_date, access_end_date }) => {
+export const updateShopAccess = async (id, { access_enabled, access_start_date, access_end_date, allowed_days }) => {
   const response = await api.put(`/shops/${id}/access`, {
     access_enabled,
     access_start_date,
     access_end_date,
+    allowed_days,
   });
   return response.data;
 };
+ 
