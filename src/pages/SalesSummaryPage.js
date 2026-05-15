@@ -6,41 +6,15 @@ import {
   Tabs, Tab, Checkbox, ListItemText, OutlinedInput, InputLabel,
   FormControl, Select, Chip, Menu, ListItemIcon,
 } from '@mui/material';
-import { getSalesSummary, getCategories, getApprovedSummary, getPresentSummary } from '../api/index';
+import { getSalesSummary, getCategories, getApprovedSummary, getPresentSummary,getAllBrands } from '../api/index';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+
 
 const QPN_COLS  = ['Q', 'P', 'N'];
 const BEER_COLS = ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl', '325ml Btl'];
 
-// ── Brand order from DB ───────────────────────────────────────────────────
-const [brandsFromDB, setBrandsFromDB] = useState([]);
 
-// Add this inside useEffect fetchCategories or separate useEffect:
-useEffect(() => {
-  const fetchBrands = async () => {
-    try {
-      const data = await getAllBrands();
-      setBrandsFromDB(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-  fetchBrands();
-}, []);
-
-// sortBrands — use DB order instead of hardcoded
-const sortBrands = (brands, categoryId) => {
-  const dbOrder = brandsFromDB
-    .filter(b => b.category_id === categoryId)
-    .sort((a, b) => a.order_index - b.order_index)
-    .map(b => b.brand_name);
-  if (dbOrder.length === 0) return brands;
-  const known = dbOrder.filter(b => brands.includes(b));
-  const unknown = brands.filter(b => !dbOrder.includes(b));
-  return [...known, ...unknown];
-};
-  
 
 export default function SalesSummaryPage() {
   const [activeTab, setActiveTab] = useState(0);
