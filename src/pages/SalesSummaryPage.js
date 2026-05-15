@@ -586,7 +586,15 @@ const renderQPNSummary = (getColTotal, headerColor) => {
         : isTab1HasData
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a3a5c" mb={1} textAlign="center">{selectedCategoryName} — Request Order Summary</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)}</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
+  Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} | 
+  {filter === 'daily' 
+    ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+    : filter === 'weekly'
+    ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+    : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+  }
+</Typography>
               {renderQPNSummary(getColTotal1, '#1a3a5c')}
               <Box mt={1.5}>{renderTable(scrollRef1,shops1,brands1,getQty1,getBrandColTotal1,getShopTotal1,getShopAmount1,getColTotal1,getNetTotal1,getNetAmount1,'#1a3a5c','#2a5278')}</Box>
             </CardContent></Card>
@@ -599,7 +607,15 @@ const renderQPNSummary = (getColTotal, headerColor) => {
         : isTab2HasData
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a5c3d" mb={1} textAlign="center">{selectedCategoryName} — Approved Order Summary</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)}</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
+  Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} | 
+  {filter === 'daily' 
+    ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+    : filter === 'weekly'
+    ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+    : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+  }
+  </Typography>
               {renderQPNSummary(getColTotal2, '#1a5c3d')}
               <Box mt={1.5}>{renderTable(scrollRef2,shops2,brands2,getQty2,getBrandColTotal2,getShopTotal2,getShopAmount2,getColTotal2,getNetTotal2,getNetAmount2,'#1a5c3d','#2d7a50')}</Box>
             </CardContent></Card>
@@ -612,7 +628,15 @@ const renderQPNSummary = (getColTotal, headerColor) => {
         : isTab3HasData
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#7b3f00" mb={1} textAlign="center">{selectedCategoryName} — Present Stock Summary</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)}</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
+  Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} | 
+  {filter === 'daily' 
+    ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+    : filter === 'weekly'
+    ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+    : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+  }
+</Typography>
               {renderQPNSummary(getColTotal3, '#7b3f00')}
               <Box mt={1.5}>{renderTable(scrollRef3,shops3,brands3,getQty3,getBrandColTotal3,getShopTotal3,getShopAmount3,getColTotal3,getNetTotal3,getNetAmount3,'#7b3f00','#a0522d')}</Box>
             </CardContent></Card>
