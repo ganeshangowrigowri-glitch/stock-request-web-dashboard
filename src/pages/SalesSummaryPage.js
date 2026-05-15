@@ -13,59 +13,38 @@ import { saveAs } from 'file-saver';
 const QPN_COLS  = ['Q', 'P', 'N'];
 const BEER_COLS = ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl', '325ml Btl'];
 
-// ── Brand order per category (key = category_name lowercased) ────────────────
-const BRAND_ORDER = {
-  'ug': [
-    'UG EXTRA SPECIAL ARRACK','UG SPECIAL ARRACK','LEMONARK ARRACK','ORIGIN PREMIUM WHITE ARRACK',
-    'GOLD STAR ARRACK','VAT 6 ARRACK','ISLAND STAGE WHISKY','POYN VODKA','MORPHO LONDON DRY GIN',
-    'APPLEARK ARRACK','LEO ARRACK','POYN VODKA-GREEN APPLE','ROYAL BLACK ARRACK',
-  ],
-  'dcsl': [
-    'EXTRA SPECIAL','SPECIAL ARRACK','WHITE LABEL ARRACK','BLUE LABEL ARRACK','COCONUT ARRACK',
-    'OLD ARRACK','V.S.O.A. PREMIUM','D.D.A','SRI LANKA ARRACK','ARGENTE','NARIKELA','ECONOMY PLUS',
-    'DOUBLE BARREL','BLACK OPAL ARRACK','TRIPLE BLUE ARRACK','PERICEYL APPLE ARRACK',
-    'PERICEYL MANGO ARRACK','HOUSE OF TILBURY WHISKY','TILSIDER WHISKY','GALERIE BRANDY',
-    'GALERIE PREMIUM BRANDY','FRANKLIN BRANDY','BALMORAL DARK RUM','BALMORAL WHITE RUM',
-    'PETROF VODKA','EXCELLA TEQUILA','FLINTON LONDON GIN','FLINTON LEMON GIN',
-  ],
-  'idl': [
-    'OLD RESERVE ARRACK','OLD ARRACK','BLACK LABEL','RED LABEL','GREEN LABEL','GOLD LABEL',
-    'WHITE LABEL','WHITE DIAMOND','WHITE DIAMOND LEMON','WHITE DIAMOND APPLE','BLUE SAPPHIRE',
-    'CLUB 07','OLD CASK','CAVELIER','ASCOT DRY GIN','ASCOT LEMON GIN','RITZ BRANDY',
-    'CHERRY BRANDY','V & A WHISKEY','CALYPSO RED RUM','B. BACCARDI RUM','W. BACCARDI RUM',
-    'ERISTOFF VODKA','CELEBRATION VODKA','VSA GOLD',
-  ],
-  'rockland': [
-    'VAT 9','EXTRA OLD ARRACK','ROCKLAND OLD ARRACK','HALMILLA OLD ARRACK','DD ARRACK',
-    'COCONUT ARRACK','GOVERNOR\'S CHOICE','NAVY SEAL','ENGLISH APPLE ARRACK','DRY GIN','LEMON GIN',
-    'PREMIUM RED RUM','PREMIUM WHITE RUM','HANAPIER BRANDY','OLD KEG WHISKEY',
-    'OLD KEG DOUBLE BLEND WHISKEY','KEROFF VODKA','ROSKA VODKA','NAPOLEON BRANDY','EX WHITE',
-    'VAT 9 (WITH BOX)','VAT 9 (WITHOUT BOX)','HANAPIER BRANDY (WITH BOX)','HANAPIER BRANDY (WITHOUT BOX)',
-  ],
-  'lion brewery': [
-    'LION LAGER','CARLSBERG INTERNATIONAL PREMIUM','LION STOUT','LION STRONG',
-    'CARLSBERG PREMIUM SPECIAL BREW','RYDERS WILD APPLE','RYDERS GINGER','SOMERSBY APPLE',
-    'SOMERSBY BLACK BERRY','CARLSBERG PREMIUM SMOOTH DRAUGHT','GRAND BLONDE','LION TRUEBORN',
-    'ICE','GUINNESS ST',
-  ],
-  'dcsl beer': [
-    'DCSL LAGER','DCSL STRONG','DCSL STOUT','TIGER BLACK','BISON STRONG','ALIYA STRONG',
-    'ALIYA LAGER','BISON BREEZE','BISON STOUT','ANCHOR STRONG',
-  ],
-};
+// ── Brand order from DB ───────────────────────────────────────────────────
+const [brandsFromDB, setBrandsFromDB] = useState([]);
 
-const sortBrands = (brands, categoryName) => {
-  const key = (categoryName || '').toLowerCase();
-  const order = Object.entries(BRAND_ORDER).find(([k]) => key.includes(k))?.[1];
-  if (!order) return brands;
-  const known = order.filter(b => brands.includes(b));
-  const unknown = brands.filter(b => !order.includes(b));
+// Add this inside useEffect fetchCategories or separate useEffect:
+useEffect(() => {
+  const fetchBrands = async () => {
+    try {
+      const data = await getAllBrands();
+      setBrandsFromDB(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  fetchBrands();
+}, []);
+
+// sortBrands — use DB order instead of hardcoded
+const sortBrands = (brands, categoryId) => {
+  const dbOrder = brandsFromDB
+    .filter(b => b.category_id === categoryId)
+    .sort((a, b) => a.order_index - b.order_index)
+    .map(b => b.brand_name);
+  if (dbOrder.length === 0) return brands;
+  const known = dbOrder.filter(b => brands.includes(b));
+  const unknown = brands.filter(b => !dbOrder.includes(b));
   return [...known, ...unknown];
 };
+  
 
 export default function SalesSummaryPage() {
   const [activeTab, setActiveTab] = useState(0);
-
+  const [brandsFromDB, setBrandsFromDB] = useState([]);
   const [categories, setCategories]                     = useState([]);
   const [selectedCategory, setSelectedCategory]         = useState('');
   const [selectedCategoryName, setSelectedCategoryName] = useState('');
@@ -103,6 +82,27 @@ export default function SalesSummaryPage() {
       }
     } catch (error) { console.error(error); }
   };
+  useEffect(() => {
+  const fetchBrands = async () => {
+    try {
+      const data = await getAllBrands();
+      setBrandsFromDB(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  fetchBrands();
+}, []);
+const sortBrands = (brands, categoryId) => {
+  const dbOrder = brandsFromDB
+    .filter(b => b.category_id === categoryId)
+    .sort((a, b) => a.order_index - b.order_index)
+    .map(b => b.brand_name);
+  if (dbOrder.length === 0) return brands;
+  const known = dbOrder.filter(b => brands.includes(b));
+  const unknown = brands.filter(b => !dbOrder.includes(b));
+  return [...known, ...unknown];
+}; 
 
   const columns = selectedCategoryType === 'beer' ? BEER_COLS : QPN_COLS;
 
@@ -136,7 +136,7 @@ export default function SalesSummaryPage() {
   const allShops1  = [...new Set(summaryData.map(d => d.shop_name))];
   const shops1     = selectedShops.length > 0 ? allShops1.filter(s => selectedShops.includes(s)) : allShops1;
   const allBrands1 = [...new Set(summaryData.map(d => d.brand_name))];
-  const brands1    = sortBrands(allBrands1, selectedCategoryName);
+  const brands1 = sortBrands(allBrands1, selectedCategory);
   const getRow1    = (shop, brand) => summaryData.find(d => d.shop_name === shop && d.brand_name === brand);
   const getQty1    = (shop, brand, ci) => { const row = getRow1(shop,brand); if(!row) return 0; return parseInt(row[['qty_1','qty_2','qty_3','qty_4','qty_5'][ci]])||0; };
   const getBrandTotal1  = (shop, brand) => { const row = getRow1(shop,brand); return row ? parseInt(row.total_requested)||0 : 0; };
@@ -152,7 +152,7 @@ export default function SalesSummaryPage() {
   const allShops2  = [...new Set(approvedData.map(d => d.shop_name))];
   const shops2     = selectedShops.length > 0 ? allShops2.filter(s => selectedShops.includes(s)) : allShops2;
   const allBrands2 = [...new Set(approvedData.map(d => d.brand_name))];
-  const brands2    = sortBrands(allBrands2, selectedCategoryName);
+  const brands2 = sortBrands(allBrands2, selectedCategory);
   const getRow2    = (shop, brand) => approvedData.find(d => d.shop_name === shop && d.brand_name === brand);
   const getQty2    = (shop, brand, ci) => { const row = getRow2(shop,brand); if(!row) return 0; return parseInt(row[['qty_1','qty_2','qty_3','qty_4','qty_5'][ci]])||0; };
   const getBrandTotal2  = (shop, brand) => { const row = getRow2(shop,brand); return row ? parseInt(row.total_approved)||0 : 0; };
@@ -167,7 +167,7 @@ export default function SalesSummaryPage() {
   const allShops3  = [...new Set(presentData.map(d => d.shop_name))];
   const shops3     = selectedShops.length > 0 ? allShops3.filter(s => selectedShops.includes(s)) : allShops3;
   const allBrands3 = [...new Set(presentData.map(d => d.brand_name))];
-  const brands3    = sortBrands(allBrands3, selectedCategoryName);
+  const brands3 = sortBrands(allBrands3, selectedCategory);
   const getRow3    = (shop, brand) => presentData.find(d => d.shop_name === shop && d.brand_name === brand);
   const getQty3    = (shop, brand, ci) => { const row = getRow3(shop,brand); if(!row) return 0; return parseInt(row[['qty_1','qty_2','qty_3','qty_4','qty_5'][ci]])||0; };
   const getBrandTotal3  = (shop, brand) => { const row = getRow3(shop,brand); return row ? parseInt(row.total_present)||0 : 0; };
