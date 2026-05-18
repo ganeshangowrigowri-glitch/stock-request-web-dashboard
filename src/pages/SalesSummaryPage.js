@@ -274,7 +274,13 @@ const sortBrands = (brands, categoryId) => {
         .qpn-row td{text-align:left!important;background:#f0f0f0!important;}
       </style></head><body>
       <h2>${title}</h2>
-      <p>Filter: ${filter.charAt(0).toUpperCase()+filter.slice(1)}</p>
+      <p>Filter: ${filter.charAt(0).toUpperCase()+filter.slice(1)} | ${
+  filter === 'daily'
+    ? `Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+    : filter === 'weekly'
+    ? `Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+    : `Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+}</p>
       <table><thead>
         <tr>
           <th rowspan="2">Bar Name</th>
