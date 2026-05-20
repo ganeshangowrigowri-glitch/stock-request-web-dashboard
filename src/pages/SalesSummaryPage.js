@@ -4,9 +4,9 @@ import {
   TextField, Button, CircularProgress, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow,
   Tabs, Tab, Checkbox, ListItemText, OutlinedInput, InputLabel,
-  FormControl, Select, Chip, Menu, ListItemIcon,
+  FormControl, Select, Chip,
 } from '@mui/material';
-import { getSalesSummary, getCategories, getApprovedSummary, getPresentSummary,getAllBrands } from '../api/index';
+import { getSalesSummary, getCategories, getApprovedSummary, getPresentSummary, getAllBrands } from '../api/index';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -25,7 +25,6 @@ export default function SalesSummaryPage() {
   const [selectedCategoryType, setSelectedCategoryType] = useState('qpn');
   const [filter, setFilter]                             = useState('monthly');
 
-  // Shop filter — populated from ALL fetched data so new shops auto-appear
   const [selectedShops, setSelectedShops] = useState([]);
 
   const [summaryData, setSummaryData]         = useState([]);
@@ -35,10 +34,6 @@ export default function SalesSummaryPage() {
   const [presentData, setPresentData]         = useState([]);
   const [presentLoading, setPresentLoading]   = useState(false);
 
-  // Share menu
-  const [shareAnchor, setShareAnchor] = useState(null);
-
-  // Scroll refs
   const scrollRef1 = useRef(null);
   const scrollRef2 = useRef(null);
   const scrollRef3 = useRef(null);
@@ -56,27 +51,29 @@ export default function SalesSummaryPage() {
       }
     } catch (error) { console.error(error); }
   };
+
   useEffect(() => {
-  const fetchBrands = async () => {
-    try {
-      const data = await getAllBrands();
-      setBrandsFromDB(data);
-    } catch (error) {
-      console.error(error);
-    }
+    const fetchBrands = async () => {
+      try {
+        const data = await getAllBrands();
+        setBrandsFromDB(data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchBrands();
+  }, []);
+
+  const sortBrands = (brands, categoryId) => {
+    const dbOrder = brandsFromDB
+      .filter(b => b.category_id === categoryId)
+      .sort((a, b) => a.order_index - b.order_index)
+      .map(b => b.brand_name);
+    if (dbOrder.length === 0) return brands;
+    const known = dbOrder.filter(b => brands.includes(b));
+    const unknown = brands.filter(b => !dbOrder.includes(b));
+    return [...known, ...unknown];
   };
-  fetchBrands();
-}, []);
-const sortBrands = (brands, categoryId) => {
-  const dbOrder = brandsFromDB
-    .filter(b => b.category_id === categoryId)
-    .sort((a, b) => a.order_index - b.order_index)
-    .map(b => b.brand_name);
-  if (dbOrder.length === 0) return brands;
-  const known = dbOrder.filter(b => brands.includes(b));
-  const unknown = brands.filter(b => !dbOrder.includes(b));
-  return [...known, ...unknown];
-}; 
 
   const columns = selectedCategoryType === 'beer' ? BEER_COLS : QPN_COLS;
 
@@ -106,7 +103,6 @@ const sortBrands = (brands, categoryId) => {
 
   // ── Tab helpers ─────────────────────────────────────────────────────────────
 
-  // Tab 1
   const allShops1  = [...new Set(summaryData.map(d => d.shop_name))];
   const shops1     = selectedShops.length > 0 ? allShops1.filter(s => selectedShops.includes(s)) : allShops1;
   const allBrands1 = [...new Set(summaryData.map(d => d.brand_name))];
@@ -119,10 +115,8 @@ const sortBrands = (brands, categoryId) => {
   const getColTotal1    = (ci) => shops1.reduce((s,shop)=>s+brands1.reduce((ss,brand)=>ss+getQty1(shop,brand,ci),0),0);
   const getNetTotal1    = () => shops1.reduce((s,shop)=>s+getShopTotal1(shop),0);
   const getNetAmount1   = () => shops1.reduce((s,shop)=>s+getShopAmount1(shop),0);
-  // Per-brand column totals for grand total row
   const getBrandColTotal1 = (brand, ci) => shops1.reduce((s,shop)=>s+getQty1(shop,brand,ci),0);
 
-  // Tab 2
   const allShops2  = [...new Set(approvedData.map(d => d.shop_name))];
   const shops2     = selectedShops.length > 0 ? allShops2.filter(s => selectedShops.includes(s)) : allShops2;
   const allBrands2 = [...new Set(approvedData.map(d => d.brand_name))];
@@ -137,7 +131,6 @@ const sortBrands = (brands, categoryId) => {
   const getNetAmount2   = () => shops2.reduce((s,shop)=>s+getShopAmount2(shop),0);
   const getBrandColTotal2 = (brand, ci) => shops2.reduce((s,shop)=>s+getQty2(shop,brand,ci),0);
 
-  // Tab 3
   const allShops3  = [...new Set(presentData.map(d => d.shop_name))];
   const shops3     = selectedShops.length > 0 ? allShops3.filter(s => selectedShops.includes(s)) : allShops3;
   const allBrands3 = [...new Set(presentData.map(d => d.brand_name))];
@@ -152,7 +145,6 @@ const sortBrands = (brands, categoryId) => {
   const getNetAmount3   = () => shops3.reduce((s,shop)=>s+getShopAmount3(shop),0);
   const getBrandColTotal3 = (brand, ci) => shops3.reduce((s,shop)=>s+getQty3(shop,brand,ci),0);
 
-  // ── FIX 1: All shops across ALL data for shop filter — always up to date ────
   const allShopsForFilter = [...new Set([
     ...summaryData.map(d=>d.shop_name),
     ...approvedData.map(d=>d.shop_name),
@@ -163,28 +155,8 @@ const sortBrands = (brands, categoryId) => {
   const isTab2HasData = approvedData.length > 0;
   const isTab3HasData = presentData.length > 0;
 
-  // ── FIX 6: Scroll helper — scrolls the table container (top arrows) ─────────
   const scroll = (ref, dir) => {
     if (ref.current) ref.current.scrollBy({ left: dir * 200, behavior: 'smooth' });
-  };
-
-  // ── Share ────────────────────────────────────────────────────────────────────
-  const getShareText = () => {
-    const tab = activeTab === 0 ? 'Request Order' : activeTab === 1 ? 'Approved Order' : 'Present Stock';
-    return `${selectedCategoryName} ${tab} Summary — Filter: ${filter}`;
-  };
-
-  const handleShareEmail = () => {
-    const subject = encodeURIComponent(getShareText());
-    const body = encodeURIComponent(`Please find the ${getShareText()} attached.`);
-    window.open(`mailto:?subject=${subject}&body=${body}`);
-    setShareAnchor(null);
-  };
-
-  const handleShareWhatsApp = () => {
-    const text = encodeURIComponent(getShareText());
-    window.open(`https://wa.me/?text=${text}`);
-    setShareAnchor(null);
   };
 
   // ── Excel builders ───────────────────────────────────────────────────────────
@@ -201,12 +173,10 @@ const sortBrands = (brands, categoryId) => {
       row.push(getShopTotal(shop)); row.push(parseFloat(getShopAmount(shop)).toFixed(2));
       wsData.push(row);
     });
-    // Grand total row
     const totRow=['TOTAL'];
     brands.forEach(brand=>columns.forEach((_,ci)=>totRow.push(shops.reduce((s,sh)=>s+getQty(sh,brand,ci),0))));
     totRow.push(getNetTotal()); totRow.push(parseFloat(getNetAmount()).toFixed(2));
     wsData.push(totRow);
-    // NEW
     wsData.push([]);
     wsData.push([selectedCategoryType === 'beer' ? 'Bottle/Cane Summary (All Brands Combined)' : 'Q/P/N Summary (All Brands Combined)']);
     columns.forEach((col, ci) => wsData.push([`Total ${col}`, getColTotal(ci)]));
@@ -237,10 +207,7 @@ const sortBrands = (brands, categoryId) => {
     saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Present_Stock_${filter}.xlsx`);
   };
 
-  // ── FIX 5: Print builders — include column totals + Q/P/N rows ───────────────
   const buildPrintHtml = (title, color, subColor, bgColor, shops, brands, getQty, getShopTotal, getShopAmount, getColTotal, getNetTotal, getNetAmount) => {
-    
-    // Q/P/N summary below totals (only for qpn)
     const qpnSummaryRow = `
   <tr>
     <td style="text-align:left;font-weight:bold;color:${color};background:#e0f7f4;">TOTAL</td>
@@ -319,25 +286,20 @@ const sortBrands = (brands, categoryId) => {
     pw.document.close(); pw.focus(); setTimeout(()=>{pw.print();pw.close();},500);
   };
 
-  // ── FIX 3+4: Q/P/N summary chips — kept above table as before ───────────────
-  // NEW
-const renderQPNSummary = (getColTotal, headerColor) => {
-  return (
-    <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mt:1.5, px:1, py:1, background:`${headerColor}10`, borderRadius:1, border:`1px solid ${headerColor}30` }}>
-      <Typography variant="body2" fontWeight={700} color={headerColor} sx={{ mr:1, alignSelf:'center' }}>
-        {selectedCategoryType === 'beer' ? 'Bottle/Cane Combined:' : 'All Brands Combined:'}
-      </Typography>
-      {columns.map((col, ci) => (
-        <Chip key={col} label={`${col}: ${getColTotal(ci)}`}
-          sx={{ fontWeight:700, fontSize:13, backgroundColor:`${headerColor}15`, color:headerColor, border:`1px solid ${headerColor}40` }} />
-      ))}
-    </Box>
-  );
-};
-  // ── FIX 2+3+4+6: Table renderer ─────────────────────────────────────────────
-  // showTotalRow: always true now (request also gets totals — FIX 2)
-  // FIX 3: Q/P/N totals shown as extra colored row below TOTAL row
-  // FIX 6: Scroll arrows moved to TOP of table
+  const renderQPNSummary = (getColTotal, headerColor) => {
+    return (
+      <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mt:1.5, px:1, py:1, background:`${headerColor}10`, borderRadius:1, border:`1px solid ${headerColor}30` }}>
+        <Typography variant="body2" fontWeight={700} color={headerColor} sx={{ mr:1, alignSelf:'center' }}>
+          {selectedCategoryType === 'beer' ? 'Bottle/Cane Combined:' : 'All Brands Combined:'}
+        </Typography>
+        {columns.map((col, ci) => (
+          <Chip key={col} label={`${col}: ${getColTotal(ci)}`}
+            sx={{ fontWeight:700, fontSize:13, backgroundColor:`${headerColor}15`, color:headerColor, border:`1px solid ${headerColor}40` }} />
+        ))}
+      </Box>
+    );
+  };
+
   const renderTable = (
     scrollRef, shops, brands, getQty, getBrandColTotal,
     getShopTotal, getShopAmount, getColTotal,
@@ -345,7 +307,6 @@ const renderQPNSummary = (getColTotal, headerColor) => {
     headerColor, subColor
   ) => (
     <Box>
-      {/* FIX 6: Scroll arrows at TOP */}
       <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'center', mb:0.5, px:0.5 }}>
         <Button onClick={()=>scroll(scrollRef,-1)} variant="contained" size="small"
           sx={{ minWidth:32, width:32, height:28, p:0, borderRadius:1, backgroundColor:headerColor, '&:hover':{backgroundColor:headerColor,opacity:0.85}, boxShadow:2, fontSize:12 }}>
@@ -357,7 +318,7 @@ const renderQPNSummary = (getColTotal, headerColor) => {
           ▶
         </Button>
       </Box>
-      
+
       <TableContainer ref={scrollRef} sx={{ overflowX:'auto' }}>
         <Table size="small">
           <TableHead>
@@ -385,7 +346,6 @@ const renderQPNSummary = (getColTotal, headerColor) => {
                   ))}
                 </React.Fragment>
               ))}
-            
             </TableRow>
           </TableHead>
           <TableBody>
@@ -410,63 +370,55 @@ const renderQPNSummary = (getColTotal, headerColor) => {
               </TableRow>
             ))}
 
-           
-
-            {/* TOTAL row */}
-          <TableRow sx={{ backgroundColor:'#e0f7f4' }}>
-            <TableCell sx={{ fontWeight:700, fontSize:11, color:'#00695c', position:'sticky', left:0, backgroundColor:'#e0f7f4', zIndex:1, borderRight:`2px solid #00695c`, whiteSpace:'nowrap' }}>
-                 TOTAL
-             </TableCell>
+            <TableRow sx={{ backgroundColor:'#e0f7f4' }}>
+              <TableCell sx={{ fontWeight:700, fontSize:11, color:'#00695c', position:'sticky', left:0, backgroundColor:'#e0f7f4', zIndex:1, borderRight:`2px solid #00695c`, whiteSpace:'nowrap' }}>
+                TOTAL
+              </TableCell>
               {brands.map(brand => (
-               <React.Fragment key={brand}>
-           {columns.map((col, ci) => (
-           <TableCell key={`coltotal-${brand}-${ci}`} align="center"
-          sx={{ fontWeight:600, fontSize:12, color:'#00695c', backgroundColor:'#e0f7f4', borderLeft:ci===0?'1px solid #b2dfdb':'none' }}>
-          {getBrandColTotal(brand, ci)||'-'}
-          </TableCell>
-         ))}
-         </React.Fragment>
-         ))}
-        {/* FIX: show actual net total and amount instead of '-' */}
-        <TableCell align="center" sx={{ fontWeight:700, fontSize:12, color:'#00695c', backgroundColor:'#e0f7f4' }}>
-           {getNetTotal()}
-         </TableCell>
-        <TableCell align="center" sx={{ fontWeight:700, fontSize:12, color:'#1a5c3d', backgroundColor:'#e0f7f4' }}>
-         {parseFloat(getNetAmount()).toLocaleString('en-LK',{minimumFractionDigits:2})}
-         </TableCell>
-          </TableRow>
-            {/* Q/P/N totals for arrack OR bottle/cane totals for beer — row below TOTAL */}
-<TableRow sx={{ backgroundColor:'#f3e5f5' }}>
-  <TableCell sx={{ fontWeight:700, fontSize:11, color:'#6a1b9a', position:'sticky', left:0, backgroundColor:'#f3e5f5', zIndex:1, borderRight:`2px solid #6a1b9a`, whiteSpace:'nowrap' }}>
-    {selectedCategoryType === 'beer' ? 'BOTTLE/CANE\nTOTALS' : 'Q/P/N TOTALS'}
-  </TableCell>
-  <TableCell
-    colSpan={brands.length * columns.length}
-    sx={{ backgroundColor:'#f3e5f5', py:0.75 }}
-  >
-    <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', justifyContent:'center' }}>
-      {columns.map((col, ci) => (
-        <Chip
-          key={col}
-          label={`${col}: ${getColTotal(ci)}`}
-          size="small"
-          sx={{ fontWeight:700, fontSize:12, backgroundColor:'#ce93d8', color:'#4a0072', border:'1px solid #9c27b0' }}
-        />
-      ))}
-    </Box>
-  </TableCell>
-  <TableCell sx={{ backgroundColor:'#f3e5f5' }} />
-  <TableCell sx={{ backgroundColor:'#f3e5f5' }} />
-</TableRow>
-            
+                <React.Fragment key={brand}>
+                  {columns.map((col, ci) => (
+                    <TableCell key={`coltotal-${brand}-${ci}`} align="center"
+                      sx={{ fontWeight:600, fontSize:12, color:'#00695c', backgroundColor:'#e0f7f4', borderLeft:ci===0?'1px solid #b2dfdb':'none' }}>
+                      {getBrandColTotal(brand, ci)||'-'}
+                    </TableCell>
+                  ))}
+                </React.Fragment>
+              ))}
+              <TableCell align="center" sx={{ fontWeight:700, fontSize:12, color:'#00695c', backgroundColor:'#e0f7f4' }}>
+                {getNetTotal()}
+              </TableCell>
+              <TableCell align="center" sx={{ fontWeight:700, fontSize:12, color:'#1a5c3d', backgroundColor:'#e0f7f4' }}>
+                {parseFloat(getNetAmount()).toLocaleString('en-LK',{minimumFractionDigits:2})}
+              </TableCell>
+            </TableRow>
+
+            <TableRow sx={{ backgroundColor:'#f3e5f5' }}>
+              <TableCell sx={{ fontWeight:700, fontSize:11, color:'#6a1b9a', position:'sticky', left:0, backgroundColor:'#f3e5f5', zIndex:1, borderRight:`2px solid #6a1b9a`, whiteSpace:'nowrap' }}>
+                {selectedCategoryType === 'beer' ? 'BOTTLE/CANE\nTOTALS' : 'Q/P/N TOTALS'}
+              </TableCell>
+              <TableCell
+                colSpan={brands.length * columns.length}
+                sx={{ backgroundColor:'#f3e5f5', py:0.75 }}
+              >
+                <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', justifyContent:'center' }}>
+                  {columns.map((col, ci) => (
+                    <Chip
+                      key={col}
+                      label={`${col}: ${getColTotal(ci)}`}
+                      size="small"
+                      sx={{ fontWeight:700, fontSize:12, backgroundColor:'#ce93d8', color:'#4a0072', border:'1px solid #9c27b0' }}
+                    />
+                  ))}
+                </Box>
+              </TableCell>
+              <TableCell sx={{ backgroundColor:'#f3e5f5' }} />
+              <TableCell sx={{ backgroundColor:'#f3e5f5' }} />
+            </TableRow>
           </TableBody>
         </Table>
       </TableContainer>
     </Box>
   );
-
-  // ── Active data for share menu ───────────────────────────────────────────────
-  const hasData = activeTab===0?isTab1HasData:activeTab===1?isTab2HasData:isTab3HasData;
 
   return (
     <Box sx={{ p:3, backgroundColor:'#f5f6fa', minHeight:'100vh' }}>
@@ -508,7 +460,7 @@ const renderQPNSummary = (getColTotal, headerColor) => {
               <MenuItem value="monthly">Monthly</MenuItem>
             </TextField>
 
-            {/* FIX 1: Shop Multi-Select — driven by allShopsForFilter which includes ALL loaded shops */}
+            {/* Shop Multi-Select */}
             {allShopsForFilter.length > 0 && (
               <FormControl size="small" sx={{ minWidth:220, maxWidth:320 }}>
                 <InputLabel>Shop Filter (All if none)</InputLabel>
@@ -562,26 +514,6 @@ const renderQPNSummary = (getColTotal, headerColor) => {
               <Button variant="outlined" onClick={downloadExcel3} sx={{ borderColor:'#7b3f00', color:'#7b3f00', fontWeight:600 }}>📥 Excel</Button>
               <Button variant="outlined" onClick={handlePrint3}   sx={{ borderColor:'#7b3f00', color:'#7b3f00', fontWeight:600 }}>🖨 Print</Button>
             </>}
-
-            {/* Share */}
-            {hasData && (
-              <>
-                <Button variant="outlined" onClick={(e)=>setShareAnchor(e.currentTarget)}
-                  sx={{ borderColor:'#555', color:'#555', fontWeight:600 }}>
-                  🔗 Share
-                </Button>
-                <Menu anchorEl={shareAnchor} open={Boolean(shareAnchor)} onClose={()=>setShareAnchor(null)}>
-                  <MenuItem onClick={handleShareEmail}>
-                    <ListItemIcon>📧</ListItemIcon>
-                    <ListItemText>Share via Email</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={handleShareWhatsApp}>
-                    <ListItemIcon>💬</ListItemIcon>
-                    <ListItemText>Share via WhatsApp</ListItemText>
-                  </MenuItem>
-                </Menu>
-              </>
-            )}
           </Box>
         </CardContent>
       </Card>
@@ -593,14 +525,14 @@ const renderQPNSummary = (getColTotal, headerColor) => {
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a3a5c" mb={1} textAlign="center">{selectedCategoryName} — Request Order Summary</Typography>
               <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
-  Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} | 
-  {filter === 'daily' 
-    ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-    : filter === 'weekly'
-    ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-    : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-  }
-</Typography>
+                Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} |
+                {filter === 'daily'
+                  ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+                  : filter === 'weekly'
+                  ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+                  : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+                }
+              </Typography>
               {renderQPNSummary(getColTotal1, '#1a3a5c')}
               <Box mt={1.5}>{renderTable(scrollRef1,shops1,brands1,getQty1,getBrandColTotal1,getShopTotal1,getShopAmount1,getColTotal1,getNetTotal1,getNetAmount1,'#1a3a5c','#2a5278')}</Box>
             </CardContent></Card>
@@ -614,14 +546,14 @@ const renderQPNSummary = (getColTotal, headerColor) => {
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a5c3d" mb={1} textAlign="center">{selectedCategoryName} — Approved Order Summary</Typography>
               <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
-  Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} | 
-  {filter === 'daily' 
-    ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-    : filter === 'weekly'
-    ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-    : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-  }
-  </Typography>
+                Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} |
+                {filter === 'daily'
+                  ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+                  : filter === 'weekly'
+                  ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+                  : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+                }
+              </Typography>
               {renderQPNSummary(getColTotal2, '#1a5c3d')}
               <Box mt={1.5}>{renderTable(scrollRef2,shops2,brands2,getQty2,getBrandColTotal2,getShopTotal2,getShopAmount2,getColTotal2,getNetTotal2,getNetAmount2,'#1a5c3d','#2d7a50')}</Box>
             </CardContent></Card>
@@ -635,14 +567,14 @@ const renderQPNSummary = (getColTotal, headerColor) => {
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#7b3f00" mb={1} textAlign="center">{selectedCategoryName} — Present Stock Summary</Typography>
               <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
-  Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} | 
-  {filter === 'daily' 
-    ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-    : filter === 'weekly'
-    ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-    : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-  }
-</Typography>
+                Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} |
+                {filter === 'daily'
+                  ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
+                  : filter === 'weekly'
+                  ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
+                  : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
+                }
+              </Typography>
               {renderQPNSummary(getColTotal3, '#7b3f00')}
               <Box mt={1.5}>{renderTable(scrollRef3,shops3,brands3,getQty3,getBrandColTotal3,getShopTotal3,getShopAmount3,getColTotal3,getNetTotal3,getNetAmount3,'#7b3f00','#a0522d')}</Box>
             </CardContent></Card>
