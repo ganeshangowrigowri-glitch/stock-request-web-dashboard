@@ -33,8 +33,11 @@ export default function RequestsPage() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterTime, setFilterTime]         = useState('all');
   const [search, setSearch]                 = useState('');
+  const [selected, setSelected] = useState([]);
   const navigate = useNavigate();
-
+const [deletedRequests, setDeletedRequests] = useState([]);
+const [undoTimer, setUndoTimer] = useState(null);
+const [showUndo, setShowUndo] = useState(false);
   useEffect(() => { fetchRequests(); }, []);
 
   const fetchRequests = async () => {
@@ -69,15 +72,6 @@ export default function RequestsPage() {
     }
   }, [filterStatus, fetchNoOrderShops]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this request?')) return;
-    try {
-      await deleteRequest(id);
-      setRequests(prev => prev.filter(r => r.id !== id));
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   const handleClearOld = async () => {
     if (!window.confirm('Clear all requests older than 30 days?')) return;
@@ -105,6 +99,48 @@ export default function RequestsPage() {
   };
 
   const isNoOrder = filterStatus === 'no-order';
+  const handleRowClick = (id) => {
+  setSelected(prev =>
+    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  );
+};
+const handleDeleteSelected = async () => {
+  if (selected.length === 0) return;
+  if (!window.confirm(`Delete ${selected.length} selected request(s)?`)) return;
+  
+  // Save deleted requests for undo
+  const toDelete = requests.filter(r => selected.includes(r.id));
+  setDeletedRequests(toDelete);
+  
+  // Remove from UI immediately
+  setRequests(prev => prev.filter(r => !selected.includes(r.id)));
+  setSelected([]);
+  setShowUndo(true);
+
+  // Clear previous timer
+  if (undoTimer) clearTimeout(undoTimer);
+
+  // Actually delete after 30 seconds
+  const timer = setTimeout(async () => {
+    try {
+      await Promise.all(toDelete.map(r => deleteRequest(r.id)));
+    } catch (error) {
+      console.error(error);
+    }
+    setShowUndo(false);
+    setDeletedRequests([]);
+  }, 30000);
+
+  setUndoTimer(timer);
+};
+
+const handleUndo = () => {
+  if (undoTimer) clearTimeout(undoTimer);
+  setRequests(prev => [...deletedRequests, ...prev]);
+  setDeletedRequests([]);
+  setShowUndo(false);
+  setUndoTimer(null);
+};
 
   return (
     <Box sx={{ p: 3, backgroundColor: '#f5f6fa', minHeight: '100vh' }}>
@@ -156,13 +192,23 @@ export default function RequestsPage() {
                 <MenuItem value="month">This Month</MenuItem>
               </TextField>
             )}
-
-            <Button
-              variant="outlined" color="error" size="small"
-              onClick={handleClearOld} sx={{ fontWeight: 600, ml: 'auto' }}
-            >
-              Clear Old Requests
-            </Button>
+              
+            <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+            {selected.length > 0 && (
+           <Button
+          variant="contained" color="error" size="small"
+          onClick={handleDeleteSelected} sx={{ fontWeight: 600 }}
+          >
+         Delete Selected ({selected.length})
+        </Button>
+        )}
+      <Button
+       variant="outlined" color="error" size="small"
+        onClick={handleClearOld} sx={{ fontWeight: 600 }}
+        >
+         Clear Old Requests
+        </Button>
+        </Box>
           </Box>
         </CardContent>
       </Card>
@@ -179,8 +225,8 @@ export default function RequestsPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#1a3a5c' }}>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>#</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Bar Name</TableCell>
+                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>#</TableCell>
+                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>Bar Name</TableCell>
                     <TableCell sx={{ color: 'white', fontWeight: 600 }}>Status</TableCell>
                   </TableRow>
                 </TableHead>
@@ -227,8 +273,17 @@ export default function RequestsPage() {
                   {filtered.map((req, index) => {
                     const status = STATUS_COLORS[req.status] || STATUS_COLORS.pending;
                     return (
-                      <TableRow key={req.id} hover>
-                        <TableCell>{index + 1}</TableCell>
+                     <TableRow
+                     key={req.id} hover
+                     onClick={() => handleRowClick(req.id)}
+                     sx={{
+                    cursor: 'pointer',
+                    backgroundColor: selected.includes(req.id) ? '#eef2ff' : 'inherit',
+                    outline: selected.includes(req.id) ? '2px solid #1a3a5c' : 'none',
+                    outlineOffset: '-2px',
+                    }}
+                    >
+                   <TableCell>{index + 1}</TableCell>
                         <TableCell>{req.shop_name}</TableCell>
                         <TableCell>{req.category_name}</TableCell>
                         <TableCell>{formatDate(req.submitted_at)}</TableCell>
@@ -237,23 +292,14 @@ export default function RequestsPage() {
                             sx={{ backgroundColor: status.bg, color: status.color, fontWeight: 600 }} />
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Typography
-                              variant="body2" color="#1a3a5c" fontWeight={600}
-                              sx={{ cursor: 'pointer' }}
-                              onClick={() => navigate(`/requests/${req.id}`, { state: { request: req } })}
-                            >
-                              View
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">|</Typography>
-                            <Typography
-                              variant="body2" color="error" fontWeight={600}
-                              sx={{ cursor: 'pointer' }}
-                              onClick={() => handleDelete(req.id)}
-                            >
-                              Delete
-                            </Typography>
-                          </Box>
+                          <Typography
+                          variant="body2" color="#1a3a5c" fontWeight={600}
+                          sx={{ cursor: 'pointer' }}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/requests/${req.id}`, { state: { request: req } }); }}
+                          >
+                          View
+                         </Typography>
+                        
                         </TableCell>
                       </TableRow>
                     );
@@ -264,6 +310,28 @@ export default function RequestsPage() {
           )}
         </CardContent>
       </Card>
+      {showUndo && (
+  <Box sx={{
+    position: 'fixed', bottom: 24, left: 24,
+    backgroundColor: '#1a3a5c', color: 'white', borderRadius: 1.5,
+    px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1.5,
+    boxShadow: 3, zIndex: 9999,
+  }}>
+    <Typography fontSize={12}>
+      {deletedRequests.length} deleted.
+    </Typography>
+    <Button
+      size="small" variant="contained"
+      onClick={handleUndo}
+      sx={{ backgroundColor: '#fff', color: '#1a3a5c', fontWeight: 700,
+            fontSize: 11, py: 0.3, px: 1.2, minWidth: 'unset',
+            '&:hover': { backgroundColor: '#e8f0f7' } }}
+    >
+      UNDO
+    </Button>
+    <Typography fontSize={11} sx={{ opacity: 0.6 }}>(30s)</Typography>
+  </Box>
+)}
     </Box>
   );
 }

@@ -32,16 +32,24 @@ export default function RequestDetailPage() {
     try {
       const data = await getRequestById(id);
       setDetail(data);
-      const initial = {};
-      data.items.forEach(item => {
-        initial[item.id] = {
-          approved_1: item.approved_1 || 0,
-          approved_2: item.approved_2 || 0,
-          approved_3: item.approved_3 || 0,
-          approved_4: item.approved_4 || 0,
-          approved_5: item.approved_5 || 0,
-        };
-      });
+      
+    const initial = {};
+data.items.forEach(item => {
+  const pick = (approved, request) => {
+    if (approved !== null && approved !== undefined && approved > 0) return approved;
+    if (request !== null && request !== undefined && request > 0) return request;
+    return '';
+  };
+
+  initial[item.id] = {
+    approved_1: pick(item.approved_1, item.request_1),
+    approved_2: pick(item.approved_2, item.request_2),
+    approved_3: pick(item.approved_3, item.request_3),
+    approved_4: pick(item.approved_4, item.request_4),
+    approved_5: pick(item.approved_5, item.request_5),
+  };
+});
+      
       setApprovedValues(initial);
     } catch (error) {
       console.error(error);
@@ -54,8 +62,12 @@ export default function RequestDetailPage() {
     try {
       setSubmitting(true);
       const items = Object.entries(approvedValues).map(([itemId, vals]) => ({
-        id: parseInt(itemId), ...vals,
-      }));
+      id: parseInt(itemId),
+     ...Object.fromEntries(
+    Object.entries(vals).map(([k, v]) => [k, v === '' ? 0 : v])
+    ),
+   }));
+      
       await approveRequest(id, items);
       setMessage('Request approved successfully!');
       setTimeout(() => navigate('/requests'), 1500);
@@ -137,8 +149,9 @@ export default function RequestDetailPage() {
             <tr style="background:${bi%2===0?'white':'#f9fafb'}">
               <td>${item.brand_name}</td>
               ${[item.present_1,item.present_2,item.present_3,item.present_4,item.present_5].slice(0,colCount).map(v=>`<td>${v||0}</td>`).join('')}
-              ${[item.request_1,item.request_2,item.request_3,item.request_4,item.request_5].slice(0,colCount).map(v=>`<td>${v||0}</td>`).join('')}
-              ${showApproved?[item.approved_1,item.approved_2,item.approved_3,item.approved_4,item.approved_5].slice(0,colCount).map(v=>`<td style="color:#1a5c3d;font-weight:bold;">${v||0}</td>`).join(''):''}
+              ${[item.request_1,item.request_2,item.request_3,item.request_4,item.request_5].slice(0,colCount).map(v=>`<td style="${!v ? 'color:#bbb;' : ''}">${v || '-'}</td>`).join('')}
+              ${showApproved?[item.approved_1,item.approved_2,item.approved_3,item.approved_4,item.approved_5].slice(0,colCount).map(v=>`<td style="color:${v ? '#1a5c3d' : '#bbb'};font-weight:bold;">${v || '-'}</td>`).join(''):''}
+
             </tr>
           `).join('')}
         </tbody>
@@ -315,13 +328,19 @@ export default function RequestDetailPage() {
                   <TableRow key={item.id} sx={{ backgroundColor: bi%2===0?'white':'#f9fafb' }}>
                     <TableCell sx={{ fontWeight: 500, fontSize: 12 }}>{item.brand_name}</TableCell>
                     {[item.present_1,item.present_2,item.present_3,item.present_4,item.present_5]
-                      .slice(0,colCount).map((v,i) => (
-                      <TableCell key={`p${i}`} align="center" sx={{ fontSize: 12 }}>{v}</TableCell>
-                    ))}
+                    .slice(0,colCount).map((v,i) => (
+                   <TableCell key={`p${i}`} align="center" 
+                   sx={{ fontSize: 12, color: v ? 'inherit' : '#bbb' }}>
+                  {v || '-'}
+                  </TableCell>
+                  ))}
+
                     {[item.request_1,item.request_2,item.request_3,item.request_4,item.request_5]
-                      .slice(0,colCount).map((v,i) => (
-                      <TableCell key={`r${i}`} align="center"
-                        sx={{ fontSize: 12, backgroundColor: 'rgba(26,58,92,0.04)' }}>{v}</TableCell>
+                    .slice(0,colCount).map((v,i) => (
+                    <TableCell key={`r${i}`} align="center"
+                    sx={{ fontSize: 12, backgroundColor: 'rgba(26,58,92,0.04)', color: v ? 'inherit' : '#bbb' }}>
+                    {v || '-'}
+                   </TableCell>
                     ))}
                     {['approved_1','approved_2','approved_3','approved_4','approved_5']
                       .slice(0,colCount).map((key,i) => (
@@ -329,17 +348,18 @@ export default function RequestDetailPage() {
                         sx={{ backgroundColor: 'rgba(46,125,50,0.06)' }}>
                         {req?.status === 'pending' ? (
                           <TextField size="small" type="number"
-                            value={approvedValues[item.id]?.[key] || 0}
-                            onChange={(e) => setApprovedValues(prev => ({
-                              ...prev,
-                              [item.id]: { ...prev[item.id], [key]: parseInt(e.target.value) || 0 }
-                            }))}
-                            inputProps={{ min: 0, style: { textAlign:'center', padding:'4px', width:'50px', fontSize:12 } }}
+                          value={approvedValues[item.id]?.[key] ?? ''}
+                          onChange={(e) => setApprovedValues(prev => ({
+                           ...prev,
+                          [item.id]: { ...prev[item.id], [key]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }
+                           }))}
+                           inputProps={{ min: 0, style: { textAlign:'center', padding:'4px', width:'50px', fontSize:12 } }}
+                           placeholder="-"
                           />
                         ) : (
-                          <Typography fontSize={12} color="success.main" fontWeight={600}>
-                            {item[key]}
-                          </Typography>
+                          <Typography fontSize={12} color={item[key] ? "success.main" : "text.disabled"} fontWeight={600}>
+                         {item[key] || '-'}
+                         </Typography>
                         )}
                       </TableCell>
                     ))}
