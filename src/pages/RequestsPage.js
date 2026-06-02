@@ -33,11 +33,35 @@ export default function RequestsPage() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterTime, setFilterTime]         = useState('all');
   const [search, setSearch]                 = useState('');
-  const [selected, setSelected] = useState([]);
+  const [selected, setSelected]             = useState([]);
+  const [deletedRequests, setDeletedRequests] = useState([]);
+  const [undoTimer, setUndoTimer]           = useState(null);
+  const [showUndo, setShowUndo]             = useState(false);
+
+  // ── NEW: multi-date filter ──────────────────────────────────────────────────
+  const [filterDates, setFilterDates] = useState([]); // array of 'YYYY-MM-DD' strings
+  const [dateInput, setDateInput]     = useState('');  // controlled input value
+
+  const handleAddDate = () => {
+    const val = dateInput.trim();
+    if (!val) return;
+    if (!filterDates.includes(val)) {
+      setFilterDates(prev => [...prev, val]);
+    }
+    setDateInput('');
+  };
+
+  const handleRemoveDate = (date) => {
+    setFilterDates(prev => prev.filter(d => d !== date));
+  };
+
+  const handleDateKeyDown = (e) => {
+    if (e.key === 'Enter') handleAddDate();
+  };
+  // ───────────────────────────────────────────────────────────────────────────
+
   const navigate = useNavigate();
-const [deletedRequests, setDeletedRequests] = useState([]);
-const [undoTimer, setUndoTimer] = useState(null);
-const [showUndo, setShowUndo] = useState(false);
+
   useEffect(() => { fetchRequests(); }, []);
 
   const fetchRequests = async () => {
@@ -51,7 +75,6 @@ const [showUndo, setShowUndo] = useState(false);
     }
   };
 
-  // ✅ defined BEFORE the useEffect that uses it
   const fetchNoOrderShops = useCallback(async () => {
     setLoading(true);
     try {
@@ -65,13 +88,11 @@ const [showUndo, setShowUndo] = useState(false);
     }
   }, [filterTime, filterCategory]);
 
-  // ✅ placed AFTER fetchNoOrderShops definition
   useEffect(() => {
     if (filterStatus === 'no-order') {
       fetchNoOrderShops();
     }
   }, [filterStatus, fetchNoOrderShops]);
-
 
   const handleClearOld = async () => {
     if (!window.confirm('Clear all requests older than 30 days?')) return;
@@ -87,7 +108,13 @@ const [showUndo, setShowUndo] = useState(false);
     const matchStatus   = filterStatus === 'all' || r.status === filterStatus;
     const matchCategory = filterCategory === 'all' || r.category_name === filterCategory;
     const matchSearch   = r.shop_name.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchCategory && matchSearch;
+
+    // ── NEW: date filter ──────────────────────────────────────────────────────
+    const matchDate = filterDates.length === 0 ||
+      filterDates.includes(new Date(r.submitted_at).toISOString().slice(0, 10));
+    // ─────────────────────────────────────────────────────────────────────────
+
+    return matchStatus && matchCategory && matchSearch && matchDate;
   });
 
   const categories = [...new Set(requests.map(r => r.category_name))];
@@ -98,49 +125,49 @@ const [showUndo, setShowUndo] = useState(false);
     });
   };
 
+  // Helper: format 'YYYY-MM-DD' → '2 Jun 2026' for chip labels
+  const formatChipDate = (iso) => {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    });
+  };
+
   const isNoOrder = filterStatus === 'no-order';
+
   const handleRowClick = (id) => {
-  setSelected(prev =>
-    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-  );
-};
-const handleDeleteSelected = async () => {
-  if (selected.length === 0) return;
-  if (!window.confirm(`Delete ${selected.length} selected request(s)?`)) return;
-  
-  // Save deleted requests for undo
-  const toDelete = requests.filter(r => selected.includes(r.id));
-  setDeletedRequests(toDelete);
-  
-  // Remove from UI immediately
-  setRequests(prev => prev.filter(r => !selected.includes(r.id)));
-  setSelected([]);
-  setShowUndo(true);
+    setSelected(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
 
-  // Clear previous timer
-  if (undoTimer) clearTimeout(undoTimer);
+  const handleDeleteSelected = async () => {
+    if (selected.length === 0) return;
+    if (!window.confirm(`Delete ${selected.length} selected request(s)?`)) return;
+    const toDelete = requests.filter(r => selected.includes(r.id));
+    setDeletedRequests(toDelete);
+    setRequests(prev => prev.filter(r => !selected.includes(r.id)));
+    setSelected([]);
+    setShowUndo(true);
+    if (undoTimer) clearTimeout(undoTimer);
+    const timer = setTimeout(async () => {
+      try {
+        await Promise.all(toDelete.map(r => deleteRequest(r.id)));
+      } catch (error) {
+        console.error(error);
+      }
+      setShowUndo(false);
+      setDeletedRequests([]);
+    }, 30000);
+    setUndoTimer(timer);
+  };
 
-  // Actually delete after 30 seconds
-  const timer = setTimeout(async () => {
-    try {
-      await Promise.all(toDelete.map(r => deleteRequest(r.id)));
-    } catch (error) {
-      console.error(error);
-    }
-    setShowUndo(false);
+  const handleUndo = () => {
+    if (undoTimer) clearTimeout(undoTimer);
+    setRequests(prev => [...deletedRequests, ...prev]);
     setDeletedRequests([]);
-  }, 30000);
-
-  setUndoTimer(timer);
-};
-
-const handleUndo = () => {
-  if (undoTimer) clearTimeout(undoTimer);
-  setRequests(prev => [...deletedRequests, ...prev]);
-  setDeletedRequests([]);
-  setShowUndo(false);
-  setUndoTimer(null);
-};
+    setShowUndo(false);
+    setUndoTimer(null);
+  };
 
   return (
     <Box sx={{ p: 3, backgroundColor: '#f5f6fa', minHeight: '100vh' }}>
@@ -192,23 +219,68 @@ const handleUndo = () => {
                 <MenuItem value="month">This Month</MenuItem>
               </TextField>
             )}
-              
+
+            {/* ── NEW: Date filter (only shown outside no-order view) ─────── */}
+            {!isNoOrder && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <TextField
+                  label="Filter by date" type="date" size="small"
+                  value={dateInput}
+                  onChange={(e) => setDateInput(e.target.value)}
+                  onKeyDown={handleDateKeyDown}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 160 }}
+                />
+                <Button
+                  variant="outlined" size="small"
+                  onClick={handleAddDate}
+                  disabled={!dateInput}
+                  sx={{ fontWeight: 600, borderColor: '#1a3a5c', color: '#1a3a5c',
+                        '&:hover': { borderColor: '#1a3a5c', backgroundColor: '#e8f0f7' } }}
+                >
+                  Add
+                </Button>
+
+                {/* Chips for each selected date */}
+                {filterDates.map(date => (
+                  <Chip
+                    key={date}
+                    label={formatChipDate(date)}
+                    size="small"
+                    onDelete={() => handleRemoveDate(date)}
+                    sx={{ backgroundColor: '#e8f0f7', color: '#1a3a5c', fontWeight: 600 }}
+                  />
+                ))}
+
+                {filterDates.length > 0 && (
+                  <Button
+                    size="small" variant="text"
+                    onClick={() => setFilterDates([])}
+                    sx={{ fontSize: 11, color: '#842029', textTransform: 'none', p: 0 }}
+                  >
+                    Clear dates
+                  </Button>
+                )}
+              </Box>
+            )}
+            {/* ─────────────────────────────────────────────────────────────── */}
+
             <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-            {selected.length > 0 && (
-           <Button
-          variant="contained" color="error" size="small"
-          onClick={handleDeleteSelected} sx={{ fontWeight: 600 }}
-          >
-         Delete Selected ({selected.length})
-        </Button>
-        )}
-      <Button
-       variant="outlined" color="error" size="small"
-        onClick={handleClearOld} sx={{ fontWeight: 600 }}
-        >
-         Clear Old Requests
-        </Button>
-        </Box>
+              {selected.length > 0 && (
+                <Button
+                  variant="contained" color="error" size="small"
+                  onClick={handleDeleteSelected} sx={{ fontWeight: 600 }}
+                >
+                  Delete Selected ({selected.length})
+                </Button>
+              )}
+              <Button
+                variant="outlined" color="error" size="small"
+                onClick={handleClearOld} sx={{ fontWeight: 600 }}
+              >
+                Clear Old Requests
+              </Button>
+            </Box>
           </Box>
         </CardContent>
       </Card>
@@ -225,8 +297,8 @@ const handleUndo = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#1a3a5c' }}>
-                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>#</TableCell>
-                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>Bar Name</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>#</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 600 }}>Bar Name</TableCell>
                     <TableCell sx={{ color: 'white', fontWeight: 600 }}>Status</TableCell>
                   </TableRow>
                 </TableHead>
@@ -244,8 +316,7 @@ const handleUndo = () => {
                         <TableCell>{shop.shop_name}</TableCell>
                         <TableCell>
                           <Chip
-                            label="No Order"
-                            size="small"
+                            label="No Order" size="small"
                             sx={{ backgroundColor: '#f0f0f0', color: '#555', fontWeight: 600 }}
                           />
                         </TableCell>
@@ -273,17 +344,17 @@ const handleUndo = () => {
                   {filtered.map((req, index) => {
                     const status = STATUS_COLORS[req.status] || STATUS_COLORS.pending;
                     return (
-                     <TableRow
-                     key={req.id} hover
-                     onClick={() => handleRowClick(req.id)}
-                     sx={{
-                    cursor: 'pointer',
-                    backgroundColor: selected.includes(req.id) ? '#eef2ff' : 'inherit',
-                    outline: selected.includes(req.id) ? '2px solid #1a3a5c' : 'none',
-                    outlineOffset: '-2px',
-                    }}
-                    >
-                   <TableCell>{index + 1}</TableCell>
+                      <TableRow
+                        key={req.id} hover
+                        onClick={() => handleRowClick(req.id)}
+                        sx={{
+                          cursor: 'pointer',
+                          backgroundColor: selected.includes(req.id) ? '#eef2ff' : 'inherit',
+                          outline: selected.includes(req.id) ? '2px solid #1a3a5c' : 'none',
+                          outlineOffset: '-2px',
+                        }}
+                      >
+                        <TableCell>{index + 1}</TableCell>
                         <TableCell>{req.shop_name}</TableCell>
                         <TableCell>{req.category_name}</TableCell>
                         <TableCell>{formatDate(req.submitted_at)}</TableCell>
@@ -293,13 +364,12 @@ const handleUndo = () => {
                         </TableCell>
                         <TableCell>
                           <Typography
-                          variant="body2" color="#1a3a5c" fontWeight={600}
-                          sx={{ cursor: 'pointer' }}
-                          onClick={(e) => { e.stopPropagation(); navigate(`/requests/${req.id}`, { state: { request: req } }); }}
+                            variant="body2" color="#1a3a5c" fontWeight={600}
+                            sx={{ cursor: 'pointer' }}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/requests/${req.id}`, { state: { request: req } }); }}
                           >
-                          View
-                         </Typography>
-                        
+                            View
+                          </Typography>
                         </TableCell>
                       </TableRow>
                     );
@@ -310,28 +380,29 @@ const handleUndo = () => {
           )}
         </CardContent>
       </Card>
+
       {showUndo && (
-  <Box sx={{
-    position: 'fixed', bottom: 24, left: 24,
-    backgroundColor: '#1a3a5c', color: 'white', borderRadius: 1.5,
-    px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1.5,
-    boxShadow: 3, zIndex: 9999,
-  }}>
-    <Typography fontSize={12}>
-      {deletedRequests.length} deleted.
-    </Typography>
-    <Button
-      size="small" variant="contained"
-      onClick={handleUndo}
-      sx={{ backgroundColor: '#fff', color: '#1a3a5c', fontWeight: 700,
-            fontSize: 11, py: 0.3, px: 1.2, minWidth: 'unset',
-            '&:hover': { backgroundColor: '#e8f0f7' } }}
-    >
-      UNDO
-    </Button>
-    <Typography fontSize={11} sx={{ opacity: 0.6 }}>(30s)</Typography>
-  </Box>
-)}
+        <Box sx={{
+          position: 'fixed', bottom: 24, left: 24,
+          backgroundColor: '#1a3a5c', color: 'white', borderRadius: 1.5,
+          px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1.5,
+          boxShadow: 3, zIndex: 9999,
+        }}>
+          <Typography fontSize={12}>
+            {deletedRequests.length} deleted.
+          </Typography>
+          <Button
+            size="small" variant="contained"
+            onClick={handleUndo}
+            sx={{ backgroundColor: '#fff', color: '#1a3a5c', fontWeight: 700,
+                  fontSize: 11, py: 0.3, px: 1.2, minWidth: 'unset',
+                  '&:hover': { backgroundColor: '#e8f0f7' } }}
+          >
+            UNDO
+          </Button>
+          <Typography fontSize={11} sx={{ opacity: 0.6 }}>(30s)</Typography>
+        </Box>
+      )}
     </Box>
   );
 }
