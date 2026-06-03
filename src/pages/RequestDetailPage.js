@@ -97,12 +97,15 @@ data.items.forEach(item => {
     return ['Q', 'P', 'N'];
   };
 
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'long', year: 'numeric',
-    });
-  };
-
+  // ✅ AFTER:
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr.replace(' ', 'T') + 'Z');
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+    timeZone: 'Asia/Colombo',
+  });
+};
   // ✅ Print
   const handlePrint = () => {
     const pw = window.open('', '_blank');
