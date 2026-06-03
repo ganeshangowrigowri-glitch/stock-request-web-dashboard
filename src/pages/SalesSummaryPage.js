@@ -23,7 +23,8 @@ export default function SalesSummaryPage() {
   const [selectedCategory, setSelectedCategory]         = useState('');
   const [selectedCategoryName, setSelectedCategoryName] = useState('');
   const [selectedCategoryType, setSelectedCategoryType] = useState('qpn');
-  const [filter, setFilter]                             = useState('monthly');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo]     = useState('');
 
   const [selectedShops, setSelectedShops] = useState([]);
 
@@ -33,6 +34,8 @@ export default function SalesSummaryPage() {
   const [approvedLoading, setApprovedLoading] = useState(false);
   const [presentData, setPresentData]         = useState([]);
   const [presentLoading, setPresentLoading]   = useState(false);
+
+  const [hasGenerated, setHasGenerated] = useState(false);
 
   const scrollRef1 = useRef(null);
   const scrollRef2 = useRef(null);
@@ -63,48 +66,73 @@ export default function SalesSummaryPage() {
     };
     fetchBrands();
   }, []);
-
   const sortBrands = (brands, categoryId) => {
-    const dbOrder = brandsFromDB
-      .filter(b => b.category_id === categoryId)
-      .sort((a, b) => a.order_index - b.order_index)
-      .map(b => b.brand_name);
-    if (dbOrder.length === 0) return brands;
-    const known = dbOrder.filter(b => brands.includes(b));
-    const unknown = brands.filter(b => !dbOrder.includes(b));
-    return [...known, ...unknown];
-  };
+  const dbOrder = brandsFromDB
+    .filter(b => b.category_id === categoryId)
+    .sort((a, b) => a.order_index - b.order_index)
+    .map(b => b.brand_name);
+  if (dbOrder.length === 0) return brands;
+  // Strictly follow dbOrder — brands not in dbOrder go to end sorted by name
+  const inOrder = dbOrder.filter(b => brands.includes(b));
+  const notInOrder = brands
+    .filter(b => !dbOrder.includes(b))
+    .sort((a, b) => a.localeCompare(b));
+  return [...inOrder, ...notInOrder];
+};
 
   const columns = selectedCategoryType === 'beer' ? BEER_COLS : QPN_COLS;
 
   const fetchSummary = async () => {
     if (!selectedCategory) return;
-    try { setLoading(true); const data = await getSalesSummary(selectedCategory, filter); setSummaryData(data); }
+    try { setLoading(true); setHasGenerated(true); const data = await getSalesSummary(selectedCategory, null, dateFrom, dateTo); setSummaryData(data); }
     catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
   const fetchApproved = async () => {
     if (!selectedCategory) return;
-    try { setApprovedLoading(true); const data = await getApprovedSummary(selectedCategory, filter); setApprovedData(data); }
+    try { setApprovedLoading(true); setHasGenerated(true); const data = await getApprovedSummary(selectedCategory, null, dateFrom, dateTo); setApprovedData(data); }
     catch (error) { console.error(error); } finally { setApprovedLoading(false); }
   };
 
   const fetchPresent = async () => {
     if (!selectedCategory) return;
-    try { setPresentLoading(true); const data = await getPresentSummary(selectedCategory, filter); setPresentData(data); }
+    try { setPresentLoading(true); setHasGenerated(true); const data = await getPresentSummary(selectedCategory, null, dateFrom, dateTo); setPresentData(data); }
     catch (error) { console.error(error); } finally { setPresentLoading(false); }
   };
 
   const handleGenerate = () => {
+    setHasGenerated(false);
     if (activeTab === 0) fetchSummary();
     else if (activeTab === 1) fetchApproved();
     else fetchPresent();
   };
 
+  const dateRangeLabel = () => {
+    if (dateFrom && dateTo) {
+      const from = new Date(dateFrom + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const to   = new Date(dateTo   + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      return `${from} — ${to}`;
+    }
+    if (dateFrom) return `From ${new Date(dateFrom + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+    if (dateTo)   return `Up to ${new Date(dateTo + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+    return 'All dates';
+  };
+
+  const filenameDateSuffix = () => {
+    if (dateFrom && dateTo) return `${dateFrom}_to_${dateTo}`;
+    if (dateFrom) return `from_${dateFrom}`;
+    if (dateTo)   return `upto_${dateTo}`;
+    return 'all_dates';
+  };
+
   // ── Tab helpers ─────────────────────────────────────────────────────────────
 
   const allShops1  = [...new Set(summaryData.map(d => d.shop_name))];
-  const shops1     = selectedShops.length > 0 ? allShops1.filter(s => selectedShops.includes(s)) : allShops1;
+  // Tab 1 - follows admin selection order
+const shops1 = selectedShops.length > 0
+  ? selectedShops.filter(s => allShops1.includes(s))
+  : allShops1;
+
   const allBrands1 = [...new Set(summaryData.map(d => d.brand_name))];
   const brands1 = sortBrands(allBrands1, selectedCategory);
   const getRow1    = (shop, brand) => summaryData.find(d => d.shop_name === shop && d.brand_name === brand);
@@ -118,7 +146,11 @@ export default function SalesSummaryPage() {
   const getBrandColTotal1 = (brand, ci) => shops1.reduce((s,shop)=>s+getQty1(shop,brand,ci),0);
 
   const allShops2  = [...new Set(approvedData.map(d => d.shop_name))];
-  const shops2     = selectedShops.length > 0 ? allShops2.filter(s => selectedShops.includes(s)) : allShops2;
+  
+// Tab 2 - follows admin selection order
+const shops2 = selectedShops.length > 0
+  ? selectedShops.filter(s => allShops2.includes(s))
+  : allShops2;
   const allBrands2 = [...new Set(approvedData.map(d => d.brand_name))];
   const brands2 = sortBrands(allBrands2, selectedCategory);
   const getRow2    = (shop, brand) => approvedData.find(d => d.shop_name === shop && d.brand_name === brand);
@@ -132,7 +164,10 @@ export default function SalesSummaryPage() {
   const getBrandColTotal2 = (brand, ci) => shops2.reduce((s,shop)=>s+getQty2(shop,brand,ci),0);
 
   const allShops3  = [...new Set(presentData.map(d => d.shop_name))];
-  const shops3     = selectedShops.length > 0 ? allShops3.filter(s => selectedShops.includes(s)) : allShops3;
+  // Tab 3 - follows admin selection order
+const shops3 = selectedShops.length > 0
+  ? selectedShops.filter(s => allShops3.includes(s))
+  : allShops3;
   const allBrands3 = [...new Set(presentData.map(d => d.brand_name))];
   const brands3 = sortBrands(allBrands3, selectedCategory);
   const getRow3    = (shop, brand) => presentData.find(d => d.shop_name === shop && d.brand_name === brand);
@@ -163,7 +198,7 @@ export default function SalesSummaryPage() {
   const buildExcel = (wb, sheetName, title, shops, brands, getQty, getShopTotal, getShopAmount, getColTotal, getNetTotal, getNetAmount) => {
     const wsData = [];
     wsData.push([title]);
-    wsData.push([`Filter: ${filter.charAt(0).toUpperCase()+filter.slice(1)}`]);
+    wsData.push([`Date Range: ${dateRangeLabel()}`]);
     wsData.push([]);
     const h1 = ['Bar Name']; brands.forEach(b=>{h1.push(b);for(let i=1;i<columns.length;i++)h1.push('');}); h1.push('Shop Total'); h1.push('Amount (Rs.)'); wsData.push(h1);
     const h2 = ['']; brands.forEach(()=>columns.forEach(c=>h2.push(c))); h2.push(''); h2.push(''); wsData.push(h2);
@@ -192,19 +227,19 @@ export default function SalesSummaryPage() {
     const wb=XLSX.utils.book_new();
     buildExcel(wb,'Request Summary',`${selectedCategoryName} Request Order Summary`,shops1,brands1,getQty1,getShopTotal1,getShopAmount1,getColTotal1,getNetTotal1,getNetAmount1);
     const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Request_Summary_${filter}.xlsx`);
+    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Request_Summary_${filenameDateSuffix()}.xlsx`);
   };
   const downloadExcel2 = () => {
     const wb=XLSX.utils.book_new();
     buildExcel(wb,'Approved Summary',`${selectedCategoryName} Approved Order Summary`,shops2,brands2,getQty2,getShopTotal2,getShopAmount2,getColTotal2,getNetTotal2,getNetAmount2);
     const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Approved_Summary_${filter}.xlsx`);
+    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Approved_Summary_${filenameDateSuffix()}.xlsx`);
   };
   const downloadExcel3 = () => {
     const wb=XLSX.utils.book_new();
     buildExcel(wb,'Present Stock',`${selectedCategoryName} Present Stock Summary`,shops3,brands3,getQty3,getShopTotal3,getShopAmount3,getColTotal3,getNetTotal3,getNetAmount3);
     const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Present_Stock_${filter}.xlsx`);
+    saveAs(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${selectedCategoryName}_Present_Stock_${filenameDateSuffix()}.xlsx`);
   };
 
   const buildPrintHtml = (title, color, subColor, bgColor, shops, brands, getQty, getShopTotal, getShopAmount, getColTotal, getNetTotal, getNetAmount) => {
@@ -241,13 +276,7 @@ export default function SalesSummaryPage() {
         .qpn-row td{text-align:left!important;background:#f0f0f0!important;}
       </style></head><body>
       <h2>${title}</h2>
-      <p>Filter: ${filter.charAt(0).toUpperCase()+filter.slice(1)} | ${
-  filter === 'daily'
-    ? `Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-    : filter === 'weekly'
-    ? `Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-    : `Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-}</p>
+      <p>Date Range: ${dateRangeLabel()}</p>
       <table><thead>
         <tr>
           <th rowspan="2">Bar Name</th>
@@ -299,6 +328,18 @@ export default function SalesSummaryPage() {
       </Box>
     );
   };
+
+  const renderEmptyState = (hasGenerated) => (
+    <Card sx={{ borderRadius:2, boxShadow:1 }}>
+      <CardContent sx={{ textAlign:'center', py:8 }}>
+        <Typography color="text.secondary" fontSize={15}>
+          {hasGenerated
+            ? `No orders found for the selected date range${dateFrom || dateTo ? ` (${dateRangeLabel()})` : ''}`
+            : 'Select a category and date range, then click Generate Report'}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
 
   const renderTable = (
     scrollRef, shops, brands, getQty, getBrandColTotal,
@@ -428,7 +469,11 @@ export default function SalesSummaryPage() {
 
       <Box sx={{ borderBottom:1, borderColor:'divider', mb:2 }}>
         <Tabs value={activeTab}
-          onChange={(e,val)=>{ setActiveTab(val); setSummaryData([]); setApprovedData([]); setPresentData([]); }}
+          onChange={(e,val)=>{
+            setActiveTab(val);
+            setSummaryData([]); setApprovedData([]); setPresentData([]);
+            setHasGenerated(false);
+          }}
           sx={{ '& .MuiTab-root':{fontWeight:600,textTransform:'none',fontSize:14}, '& .Mui-selected':{color:'#1a3a5c'}, '& .MuiTabs-indicator':{backgroundColor:'#1a3a5c'} }}>
           <Tab label="Request Order Summary" />
           <Tab label="Approved Order Summary" />
@@ -439,6 +484,7 @@ export default function SalesSummaryPage() {
       <Card sx={{ borderRadius:2, boxShadow:1, mb:2 }}>
         <CardContent>
           <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', alignItems:'center' }}>
+
             {/* Category */}
             <TextField select label="Category" size="small" value={selectedCategory}
               onChange={(e)=>{
@@ -446,19 +492,46 @@ export default function SalesSummaryPage() {
                 setSelectedCategory(e.target.value);
                 setSelectedCategoryName(cat?.category_name||'');
                 setSelectedCategoryType(cat?.category_type||'qpn');
-                setSummaryData([]); setApprovedData([]); setPresentData([]); setSelectedShops([]);
+                setSummaryData([]); setApprovedData([]); setPresentData([]);
+                setSelectedShops([]); setHasGenerated(false);
               }} sx={{ minWidth:180 }}>
               {categories.map(cat=><MenuItem key={cat.id} value={cat.id}>{cat.category_name}</MenuItem>)}
             </TextField>
 
-            {/* Filter */}
-            <TextField select label="Filter" size="small" value={filter}
-              onChange={(e)=>{ setFilter(e.target.value); setSummaryData([]); setApprovedData([]); setPresentData([]); }}
-              sx={{ minWidth:140 }}>
-              <MenuItem value="daily">Daily</MenuItem>
-              <MenuItem value="weekly">Weekly</MenuItem>
-              <MenuItem value="monthly">Monthly</MenuItem>
-            </TextField>
+            {/* Date range pickers */}
+            <TextField
+              label="From date" type="date" size="small"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setSummaryData([]); setApprovedData([]); setPresentData([]);
+                setHasGenerated(false);
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 155 }}
+            />
+            <TextField
+              label="To date" type="date" size="small"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setSummaryData([]); setApprovedData([]); setPresentData([]);
+                setHasGenerated(false);
+              }}
+              inputProps={{ min: dateFrom || undefined }}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 155 }}
+            />
+            {(dateFrom || dateTo) && (
+              <Button size="small" onClick={() => {
+                setDateFrom(''); setDateTo('');
+                setSummaryData([]); setApprovedData([]); setPresentData([]);
+                setHasGenerated(false);
+              }}
+                sx={{ color: '#999', fontSize: 11, textTransform: 'none' }}>
+                Clear dates
+              </Button>
+            )}
 
             {/* Shop Multi-Select */}
             {allShopsForFilter.length > 0 && (
@@ -524,19 +597,11 @@ export default function SalesSummaryPage() {
         : isTab1HasData
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a3a5c" mb={1} textAlign="center">{selectedCategoryName} — Request Order Summary</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
-                Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} |
-                {filter === 'daily'
-                  ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-                  : filter === 'weekly'
-                  ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-                  : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-                }
-              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">{dateRangeLabel()}</Typography>
               {renderQPNSummary(getColTotal1, '#1a3a5c')}
               <Box mt={1.5}>{renderTable(scrollRef1,shops1,brands1,getQty1,getBrandColTotal1,getShopTotal1,getShopAmount1,getColTotal1,getNetTotal1,getNetAmount1,'#1a3a5c','#2a5278')}</Box>
             </CardContent></Card>
-          : <Card sx={{borderRadius:2,boxShadow:1}}><CardContent sx={{textAlign:'center',py:8}}><Typography color="text.secondary">Select a category and filter, then click Generate Report</Typography></CardContent></Card>
+          : renderEmptyState(hasGenerated)
       )}
 
       {/* TAB 2 */}
@@ -545,19 +610,11 @@ export default function SalesSummaryPage() {
         : isTab2HasData
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a5c3d" mb={1} textAlign="center">{selectedCategoryName} — Approved Order Summary</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
-                Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} |
-                {filter === 'daily'
-                  ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-                  : filter === 'weekly'
-                  ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-                  : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-                }
-              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">{dateRangeLabel()}</Typography>
               {renderQPNSummary(getColTotal2, '#1a5c3d')}
               <Box mt={1.5}>{renderTable(scrollRef2,shops2,brands2,getQty2,getBrandColTotal2,getShopTotal2,getShopAmount2,getColTotal2,getNetTotal2,getNetAmount2,'#1a5c3d','#2d7a50')}</Box>
             </CardContent></Card>
-          : <Card sx={{borderRadius:2,boxShadow:1}}><CardContent sx={{textAlign:'center',py:8}}><Typography color="text.secondary">Select a category and filter, then click Generate Report</Typography></CardContent></Card>
+          : renderEmptyState(hasGenerated)
       )}
 
       {/* TAB 3 */}
@@ -565,20 +622,14 @@ export default function SalesSummaryPage() {
         ? <Box sx={{display:'flex',justifyContent:'center',p:8}}><CircularProgress sx={{color:'#7b3f00'}}/></Box>
         : isTab3HasData
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
-              <Typography variant="h6" fontWeight={600} color="#7b3f00" mb={1} textAlign="center">{selectedCategoryName} — Present Stock Summary</Typography>
-              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">
-                Filter: {filter.charAt(0).toUpperCase()+filter.slice(1)} |
-                {filter === 'daily'
-                  ? ` Date: ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`
-                  : filter === 'weekly'
-                  ? ` Week: ${new Date(Date.now()-6*86400000).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} - ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`
-                  : ` Month: ${new Date().toLocaleDateString('en-GB',{month:'long',year:'numeric'})}`
-                }
-              </Typography>
+              <Typography variant="h6" fontWeight={600} color="#7b3f00" mb={1} textAlign="center">
+  {selectedCategoryName} — Present Stock Summary (Approved Orders Only)
+</Typography>
+              <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">{dateRangeLabel()}</Typography>
               {renderQPNSummary(getColTotal3, '#7b3f00')}
               <Box mt={1.5}>{renderTable(scrollRef3,shops3,brands3,getQty3,getBrandColTotal3,getShopTotal3,getShopAmount3,getColTotal3,getNetTotal3,getNetAmount3,'#7b3f00','#a0522d')}</Box>
             </CardContent></Card>
-          : <Card sx={{borderRadius:2,boxShadow:1}}><CardContent sx={{textAlign:'center',py:8}}><Typography color="text.secondary">Select a category and filter, then click Generate Report</Typography></CardContent></Card>
+          : renderEmptyState(hasGenerated)
       )}
     </Box>
   );

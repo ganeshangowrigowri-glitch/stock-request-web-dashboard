@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://stock-request-system-backend-production.up.railway.app/api';
+const API_URL ='https://stock-request-system-backend-production.up.railway.app/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -41,15 +41,21 @@ export const rejectRequest = async (id) => {
 export const deleteRequest = async (id) => {
   const response = await api.delete(`/requests/${id}`);
   return response.data;
-};
+}; 
 
 export const clearOldRequests = async () => {
   const response = await api.delete('/requests/clear/old');
   return response.data;
 };
 
-export const getSalesSummary = async (categoryId, filter) => {
-  const response = await api.get(`/requests/sales/summary?category_id=${categoryId}&filter=${filter}`);
+export const getSalesSummary = async (categoryId, filter, dateFrom, dateTo) => {
+  const response = await api.get('/requests/sales/summary', {
+    params: {
+      category_id: categoryId,
+      ...(dateFrom && { date_from: dateFrom }),
+      ...(dateTo && { date_to: dateTo }),
+    }
+  });
   return response.data;
 };
 
@@ -127,14 +133,26 @@ export const deleteShop = async (id) => {
   const response = await api.delete(`/shops/${id}`);
   return response.data;
 };
-export const getApprovedSummary = async (categoryId, filter) => {
-  const response = await api.get(`/requests/approved/summary?category_id=${categoryId}&filter=${filter}`);
+export const getApprovedSummary = async (categoryId, filter, dateFrom, dateTo) => {
+  const response = await api.get('/requests/approved/summary', {
+    params: {
+      category_id: categoryId,
+      ...(dateFrom && { date_from: dateFrom }),
+      ...(dateTo && { date_to: dateTo }),
+    }
+  });
   return response.data;
 };
 
 export default api;
-export const getPresentSummary = async (categoryId, filter) => {
-  const response = await api.get(`/requests/present/summary?category_id=${categoryId}&filter=${filter}`);
+export const getPresentSummary = async (categoryId, filter, dateFrom, dateTo) => {
+  const response = await api.get('/requests/present/summary', {
+    params: {
+      category_id: categoryId,
+      ...(dateFrom && { date_from: dateFrom }),
+      ...(dateTo && { date_to: dateTo }),
+    }
+  });
   return response.data;
 };
 export const updateShopAccess = async (id, { access_enabled, access_start_date, access_end_date, allowed_days }) => {
@@ -146,4 +164,3 @@ export const updateShopAccess = async (id, { access_enabled, access_start_date, 
   });
   return response.data;
 };
- 
