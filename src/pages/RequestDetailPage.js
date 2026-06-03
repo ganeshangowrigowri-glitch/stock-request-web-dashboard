@@ -100,7 +100,10 @@ data.items.forEach(item => {
   // ✅ AFTER:
 const formatDate = (dateStr) => {
   if (!dateStr) return '-';
-  const date = new Date(dateStr.replace(' ', 'T') + 'Z');
+  // Handle both "2026-06-03T03:17:23.000Z" and "2026-06-03 03:17:23" formats
+  const cleaned = dateStr.toString().replace(' ', 'T');
+  const date = new Date(cleaned);
+  if (isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
     timeZone: 'Asia/Colombo',
