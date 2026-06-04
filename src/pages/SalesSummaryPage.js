@@ -17,16 +17,26 @@ const BEER_COLS = ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl', '325ml 
 
 
 export default function SalesSummaryPage() {
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => parseInt(sessionStorage.getItem('ss_activeTab') || '0'));
   const [brandsFromDB, setBrandsFromDB] = useState([]);
   const [categories, setCategories]                     = useState([]);
-  const [selectedCategory, setSelectedCategory]         = useState('');
-  const [selectedCategoryName, setSelectedCategoryName] = useState('');
-  const [selectedCategoryType, setSelectedCategoryType] = useState('qpn');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo]     = useState('');
+const [selectedCategory, setSelectedCategory]         = useState(() => sessionStorage.getItem('ss_selectedCategory') || '');
+const [selectedCategoryName, setSelectedCategoryName] = useState(() => sessionStorage.getItem('ss_selectedCategoryName') || '');
+const [selectedCategoryType, setSelectedCategoryType] = useState(() => sessionStorage.getItem('ss_selectedCategoryType') || 'qpn');
 
-  const [selectedShops, setSelectedShops] = useState([]);
+  const [dateFrom, setDateFrom] = useState(() => sessionStorage.getItem('ss_dateFrom') || '');
+  const [dateTo, setDateTo]     = useState(() => sessionStorage.getItem('ss_dateTo') || '');
+
+  const [selectedShops, setSelectedShops] = useState(() => JSON.parse(sessionStorage.getItem('ss_selectedShops') || '[]'));
+  useEffect(() => {
+  sessionStorage.setItem('ss_activeTab', activeTab);
+  sessionStorage.setItem('ss_selectedCategory', selectedCategory);
+  sessionStorage.setItem('ss_selectedCategoryName', selectedCategoryName);
+  sessionStorage.setItem('ss_selectedCategoryType', selectedCategoryType);
+  sessionStorage.setItem('ss_dateFrom', dateFrom);
+  sessionStorage.setItem('ss_dateTo', dateTo);
+  sessionStorage.setItem('ss_selectedShops', JSON.stringify(selectedShops));
+}, [activeTab, selectedCategory, selectedCategoryName, selectedCategoryType, dateFrom, dateTo, selectedShops]);
 
   const [summaryData, setSummaryData]         = useState([]);
   const [loading, setLoading]                 = useState(false);
@@ -40,7 +50,15 @@ export default function SalesSummaryPage() {
   const scrollRef1 = useRef(null);
   const scrollRef2 = useRef(null);
   const scrollRef3 = useRef(null);
-
+useEffect(() => {
+  sessionStorage.setItem('ss_activeTab', activeTab);
+  sessionStorage.setItem('ss_selectedCategory', selectedCategory);
+  sessionStorage.setItem('ss_selectedCategoryName', selectedCategoryName);
+  sessionStorage.setItem('ss_selectedCategoryType', selectedCategoryType);
+  sessionStorage.setItem('ss_dateFrom', dateFrom);
+  sessionStorage.setItem('ss_dateTo', dateTo);
+  sessionStorage.setItem('ss_selectedShops', JSON.stringify(selectedShops));
+}, [activeTab, selectedCategory, selectedCategoryName, selectedCategoryType, dateFrom, dateTo, selectedShops]);
   useEffect(() => { fetchCategories(); }, []);
 
   const fetchCategories = async () => {

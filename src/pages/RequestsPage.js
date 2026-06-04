@@ -29,18 +29,26 @@ export default function RequestsPage() {
   const [requests, setRequests]             = useState([]);
   const [noOrderShops, setNoOrderShops]     = useState([]);
   const [loading, setLoading]               = useState(true);
-  const [filterStatus, setFilterStatus]     = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterTime, setFilterTime]         = useState('all');
-  const [search, setSearch]                 = useState('');
+  const [filterStatus, setFilterStatus]     = useState(() => sessionStorage.getItem('req_filterStatus') || 'all');
+  const [filterCategory, setFilterCategory] = useState(() => sessionStorage.getItem('req_filterCategory') || 'all');
+  const [filterTime, setFilterTime]         = useState(() => sessionStorage.getItem('req_filterTime') || 'all');
+  const [search, setSearch]                 = useState(() => sessionStorage.getItem('req_search') || '');
   const [selected, setSelected]             = useState([]);
   const [deletedRequests, setDeletedRequests] = useState([]);
   const [undoTimer, setUndoTimer]           = useState(null);
   const [showUndo, setShowUndo]             = useState(false);
 
   // ── NEW: multi-date filter ──────────────────────────────────────────────────
-  const [filterDates, setFilterDates] = useState([]); // array of 'YYYY-MM-DD' strings
-  const [dateInput, setDateInput]     = useState('');  // controlled input value
+  const [filterDates, setFilterDates] = useState(() => JSON.parse(sessionStorage.getItem('req_filterDates') || '[]'));// array of 'YYYY-MM-DD' strings
+  const [dateInput, setDateInput]     = useState(''); // controlled input value
+useEffect(() => {
+  sessionStorage.setItem('req_filterStatus', filterStatus);
+  sessionStorage.setItem('req_filterCategory', filterCategory);
+  sessionStorage.setItem('req_filterTime', filterTime);
+  sessionStorage.setItem('req_search', search);
+  sessionStorage.setItem('req_filterDates', JSON.stringify(filterDates));
+}, [filterStatus, filterCategory, filterTime, search, filterDates]);
+
 
   const handleAddDate = () => {
     const val = dateInput.trim();
