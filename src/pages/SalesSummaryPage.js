@@ -13,13 +13,33 @@ import { saveAs } from 'file-saver';
 
 const QPN_COLS  = ['Q', 'P', 'N'];
 const BEER_COLS = ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl', '325ml Btl'];
+const SHOP_ORDER = [
+  'dimuthu', 'beragala', 'haputale', 'sagara', 'dayaraba',
+  'ettampitiya', 'neluwa', 'ketawala', 'demodara',
+  'maligathenna beer', 'badulla royal', 'primilick',
+  'mer beer', 'pahala uva', 'royal bibile', 'vintage liquor (pvt) ltd',
+  'monaragala', 'isurumali', 'tharindu beer', 'primilick weeravila',
+  'vidura', 'premier abbana',
+];
+
+function sortShopsByOrder(shops) {
+  return [...shops].sort((a, b) => {
+    const ia = SHOP_ORDER.findIndex(n => n === a.toLowerCase().trim());
+    const ib = SHOP_ORDER.findIndex(n => n === b.toLowerCase().trim());
+    const ra = ia === -1 ? Infinity : ia;
+    const rb = ib === -1 ? Infinity : ib;
+    if (ra !== rb) return ra - rb;
+    return a.localeCompare(b);
+  });
+}
 
 
 
 export default function SalesSummaryPage() {
-  const [activeTab, setActiveTab] = useState(() => parseInt(sessionStorage.getItem('ss_activeTab') || '0'));
-  const [brandsFromDB, setBrandsFromDB] = useState([]);
-  const [categories, setCategories]                     = useState([]);
+const [activeTab, setActiveTab] = useState(() => parseInt(sessionStorage.getItem('ss_activeTab') || '0'));
+const [brandsFromDB, setBrandsFromDB] = useState([]);
+const [brandsLoaded, setBrandsLoaded] = useState(false);
+const [categories, setCategories]                     = useState([]);
 const [selectedCategory, setSelectedCategory]         = useState(() => sessionStorage.getItem('ss_selectedCategory') || '');
 const [selectedCategoryName, setSelectedCategoryName] = useState(() => sessionStorage.getItem('ss_selectedCategoryName') || '');
 const [selectedCategoryType, setSelectedCategoryType] = useState(() => sessionStorage.getItem('ss_selectedCategoryType') || 'qpn');
@@ -38,14 +58,14 @@ const [selectedCategoryType, setSelectedCategoryType] = useState(() => sessionSt
   sessionStorage.setItem('ss_selectedShops', JSON.stringify(selectedShops));
 }, [activeTab, selectedCategory, selectedCategoryName, selectedCategoryType, dateFrom, dateTo, selectedShops]);
 
-  const [summaryData, setSummaryData]         = useState([]);
+  const [summaryData, setSummaryData]   = useState(() => JSON.parse(sessionStorage.getItem('ss_summaryData')   || '[]'));
   const [loading, setLoading]                 = useState(false);
-  const [approvedData, setApprovedData]       = useState([]);
+  const [approvedData, setApprovedData] = useState(() => JSON.parse(sessionStorage.getItem('ss_approvedData') || '[]'));
   const [approvedLoading, setApprovedLoading] = useState(false);
-  const [presentData, setPresentData]         = useState([]);
+  const [presentData, setPresentData]   = useState(() => JSON.parse(sessionStorage.getItem('ss_presentData')  || '[]'));
   const [presentLoading, setPresentLoading]   = useState(false);
 
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(() => sessionStorage.getItem('ss_hasGenerated') === 'true');
 
   const scrollRef1 = useRef(null);
   const scrollRef2 = useRef(null);
@@ -58,35 +78,48 @@ useEffect(() => {
   sessionStorage.setItem('ss_dateFrom', dateFrom);
   sessionStorage.setItem('ss_dateTo', dateTo);
   sessionStorage.setItem('ss_selectedShops', JSON.stringify(selectedShops));
-}, [activeTab, selectedCategory, selectedCategoryName, selectedCategoryType, dateFrom, dateTo, selectedShops]);
+  sessionStorage.setItem('ss_summaryData',          JSON.stringify(summaryData));
+  sessionStorage.setItem('ss_approvedData',         JSON.stringify(approvedData));
+  sessionStorage.setItem('ss_presentData',          JSON.stringify(presentData));
+  sessionStorage.setItem('ss_hasGenerated',         hasGenerated);
+  sessionStorage.setItem('ss_brandsFromDB',         JSON.stringify(brandsFromDB));
+}, [activeTab, selectedCategory, selectedCategoryName, selectedCategoryType, dateFrom, dateTo, selectedShops,summaryData, approvedData, presentData,hasGenerated]);
   useEffect(() => { fetchCategories(); }, []);
 
   const fetchCategories = async () => {
     try {
       const data = await getCategories();
       setCategories(data);
-      if (data.length > 0) {
+      if (data.length > 0 && !sessionStorage.getItem('ss_selectedCategory')) {
         setSelectedCategory(data[0].id);
         setSelectedCategoryName(data[0].category_name);
         setSelectedCategoryType(data[0].category_type);
       }
     } catch (error) { console.error(error); }
   };
+// AFTER
+useEffect(() => {
+  const fetchBrands = async () => {
+    try {
+      const data = await getAllBrands();
+      setBrandsFromDB(data);
+      setBrandsLoaded(true);
+      sessionStorage.setItem('ss_brandsFromDB', JSON.stringify(data));
+      // ← force re-sort by clearing cached report data
+      // so table re-renders with fresh brand order
+      setSummaryData(prev => [...prev]);
+      setApprovedData(prev => [...prev]);
+      setPresentData(prev => [...prev]);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  fetchBrands();
+}, []);
 
-  useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        const data = await getAllBrands();
-        setBrandsFromDB(data);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    fetchBrands();
-  }, []);
   const sortBrands = (brands, categoryId) => {
   const dbOrder = brandsFromDB
-    .filter(b => b.category_id === categoryId)
+    .filter(b => String(b.category_id) === String(categoryId))
     .sort((a, b) => a.order_index - b.order_index)
     .map(b => b.brand_name);
   if (dbOrder.length === 0) return brands;
@@ -147,9 +180,10 @@ useEffect(() => {
 
   const allShops1  = [...new Set(summaryData.map(d => d.shop_name))];
   // Tab 1 - follows admin selection order
+// shops1
 const shops1 = selectedShops.length > 0
-  ? selectedShops.filter(s => allShops1.includes(s))
-  : allShops1;
+  ? selectedShops.filter(s => allShops1.includes(s))  // ← admin selected order, don't touch
+  : sortShopsByOrder(allShops1);                        // ← only sort when showing all
 
   const allBrands1 = [...new Set(summaryData.map(d => d.brand_name))];
   const brands1 = sortBrands(allBrands1, selectedCategory);
@@ -166,9 +200,11 @@ const shops1 = selectedShops.length > 0
   const allShops2  = [...new Set(approvedData.map(d => d.shop_name))];
   
 // Tab 2 - follows admin selection order
+// shops2
 const shops2 = selectedShops.length > 0
   ? selectedShops.filter(s => allShops2.includes(s))
-  : allShops2;
+  : sortShopsByOrder(allShops2);
+
   const allBrands2 = [...new Set(approvedData.map(d => d.brand_name))];
   const brands2 = sortBrands(allBrands2, selectedCategory);
   const getRow2    = (shop, brand) => approvedData.find(d => d.shop_name === shop && d.brand_name === brand);
@@ -183,9 +219,9 @@ const shops2 = selectedShops.length > 0
 
   const allShops3  = [...new Set(presentData.map(d => d.shop_name))];
   // Tab 3 - follows admin selection order
-const shops3 = selectedShops.length > 0
+  const shops3 = selectedShops.length > 0
   ? selectedShops.filter(s => allShops3.includes(s))
-  : allShops3;
+  : sortShopsByOrder(allShops3);
   const allBrands3 = [...new Set(presentData.map(d => d.brand_name))];
   const brands3 = sortBrands(allBrands3, selectedCategory);
   const getRow3    = (shop, brand) => presentData.find(d => d.shop_name === shop && d.brand_name === brand);
@@ -202,7 +238,7 @@ const shops3 = selectedShops.length > 0
     ...summaryData.map(d=>d.shop_name),
     ...approvedData.map(d=>d.shop_name),
     ...presentData.map(d=>d.shop_name),
-  ])].sort();
+  ])]
 
   const isTab1HasData = summaryData.length > 0;
   const isTab2HasData = approvedData.length > 0;
@@ -612,7 +648,7 @@ const shops3 = selectedShops.length > 0
       {/* TAB 1 */}
       {activeTab===0 && (loading
         ? <Box sx={{display:'flex',justifyContent:'center',p:8}}><CircularProgress/></Box>
-        : isTab1HasData
+        : isTab1HasData && brandsLoaded
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a3a5c" mb={1} textAlign="center">{selectedCategoryName} — Request Order Summary</Typography>
               <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">{dateRangeLabel()}</Typography>
@@ -625,7 +661,7 @@ const shops3 = selectedShops.length > 0
       {/* TAB 2 */}
       {activeTab===1 && (approvedLoading
         ? <Box sx={{display:'flex',justifyContent:'center',p:8}}><CircularProgress sx={{color:'#1a5c3d'}}/></Box>
-        : isTab2HasData
+        : isTab2HasData && brandsLoaded
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#1a5c3d" mb={1} textAlign="center">{selectedCategoryName} — Approved Order Summary</Typography>
               <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">{dateRangeLabel()}</Typography>
@@ -638,7 +674,7 @@ const shops3 = selectedShops.length > 0
       {/* TAB 3 */}
       {activeTab===2 && (presentLoading
         ? <Box sx={{display:'flex',justifyContent:'center',p:8}}><CircularProgress sx={{color:'#7b3f00'}}/></Box>
-        : isTab3HasData
+        : isTab3HasData && brandsLoaded
           ? <Card sx={{borderRadius:2,boxShadow:1}}><CardContent>
               <Typography variant="h6" fontWeight={600} color="#7b3f00" mb={1} textAlign="center">
   {selectedCategoryName} — Present Stock Summary (Approved Orders Only)

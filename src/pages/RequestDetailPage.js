@@ -5,9 +5,10 @@ import {
   Button, Chip, TextField, CircularProgress, Alert,
 } from '@mui/material';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { getRequestById, approveRequest, rejectRequest } from '../api/index';
+import { getRequestById, approveRequest, rejectRequest, getAllBrands } from '../api/index';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+
 
 const STATUS_COLORS = {
   pending:  { bg: '#fff3cd', color: '#856404', label: 'Pending' },
@@ -25,9 +26,19 @@ export default function RequestDetailPage() {
   const [approvedValues, setApprovedValues] = useState({});
   const [submitting, setSubmitting]   = useState(false);
   const [message, setMessage]         = useState('');
-
+  const [brandsFromDB, setBrandsFromDB] = useState([]);
   useEffect(() => { fetchDetail(); }, []);
-
+  useEffect(() => {
+  const fetchBrands = async () => {
+    try {
+      const data = await getAllBrands();
+      setBrandsFromDB(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  fetchBrands();
+}, []);
   const fetchDetail = async () => {
     try {
       const data = await getRequestById(id);
@@ -113,7 +124,21 @@ const formatDate = (dateStr) => {
   const handlePrint = () => {
     const pw = window.open('', '_blank');
     const req = detail?.request;
-    const items = detail?.items || [];
+    const rawItems = detail?.items || [];
+const items = brandsFromDB.length > 0
+  ? (() => {
+      const dbOrder = brandsFromDB
+        .filter(b => String(b.category_id) === String(req?.category_id))
+        .sort((a, b) => a.order_index - b.order_index)
+        .map(b => b.brand_name);
+      const inOrder = dbOrder
+        .map(name => rawItems.find(i => i.brand_name === name))
+        .filter(Boolean);
+      const notInOrder = rawItems.filter(i => !dbOrder.includes(i.brand_name));
+      return [...inOrder, ...notInOrder];
+    })()
+  : rawItems;
+    
     const columns = getColumns(req?.category_type);
     const colCount = columns.length;
     const showApproved = req?.status !== 'pending';
@@ -171,7 +196,20 @@ const formatDate = (dateStr) => {
   // ✅ Download Excel
   const handleDownloadExcel = () => {
     const req = detail?.request;
-    const items = detail?.items || [];
+    const rawItems = detail?.items || [];
+const items = brandsFromDB.length > 0
+  ? (() => {
+      const dbOrder = brandsFromDB
+        .filter(b => String(b.category_id) === String(req?.category_id))
+        .sort((a, b) => a.order_index - b.order_index)
+        .map(b => b.brand_name);
+      const inOrder = dbOrder
+        .map(name => rawItems.find(i => i.brand_name === name))
+        .filter(Boolean);
+      const notInOrder = rawItems.filter(i => !dbOrder.includes(i.brand_name));
+      return [...inOrder, ...notInOrder];
+    })()
+  : rawItems;
     const columns = getColumns(req?.category_type);
     const colCount = columns.length;
     const showApproved = req?.status !== 'pending';
@@ -239,7 +277,20 @@ const formatDate = (dateStr) => {
   );
 
   const req = detail?.request;
-  const items = detail?.items || [];
+  const rawItems = detail?.items || [];
+const items = brandsFromDB.length > 0
+  ? (() => {
+      const dbOrder = brandsFromDB
+        .filter(b => String(b.category_id) === String(req?.category_id))
+        .sort((a, b) => a.order_index - b.order_index)
+        .map(b => b.brand_name);
+      const inOrder = dbOrder
+        .map(name => rawItems.find(i => i.brand_name === name))
+        .filter(Boolean);
+      const notInOrder = rawItems.filter(i => !dbOrder.includes(i.brand_name));
+      return [...inOrder, ...notInOrder];
+    })()
+  : rawItems;
   const columns = getColumns(req?.category_type);
   const status = STATUS_COLORS[req?.status] || STATUS_COLORS.pending;
   const colCount = columns.length;

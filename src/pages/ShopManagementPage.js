@@ -19,6 +19,29 @@ import { getShops, addShop, updateShop, deleteShop, updateShopAccess } from '../
 const today = () => new Date().toISOString().split('T')[0];
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const SHOP_ORDER = [
+  'dimuthu', 'beragala', 'haputale', 'sagara', 'dayaraba',
+  'ettampitiya', 'neluwa', 'ketawala', 'demodara',
+  'maligathenna beer', 'badulla royal', 'primilick',
+  'mer beer', 'pahala uva', 'royal bibile', 'vintage liquor (pvt) ltd',
+  'monaragala', 'isurumali', 'tharindu beer', 'primilick weeravila',
+  'vidura', 'premier abbana',
+];
+
+function sortShopsByOrder(shops) {
+  const indexOf = (shop) => {
+    const idx = SHOP_ORDER.findIndex(
+      (name) => name.toLowerCase() === shop.shop_name.trim().toLowerCase()
+    );
+    return idx === -1 ? Infinity : idx;
+  };
+  return [...shops].sort((a, b) => {
+    const ia = indexOf(a);
+    const ib = indexOf(b);
+    if (ia !== ib) return ia - ib;
+    return a.id - b.id; // unknown shops sorted by insertion order (oldest id first = bottom of known list)
+  });
+}
 
 function getAccessStatus(shop) {
   if (!shop.access_enabled) return 'disabled';
@@ -58,7 +81,7 @@ export default function ShopManagementPage() {
   const fetchShops = async () => {
     try {
       const data = await getShops();
-      setShops(data);
+      setShops(sortShopsByOrder(data));
     } catch (error) {
       console.error(error);
     }
