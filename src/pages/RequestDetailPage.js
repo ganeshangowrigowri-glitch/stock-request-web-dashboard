@@ -104,7 +104,7 @@ data.items.forEach(item => {
   };
 
   const getColumns = (categoryType) => {
-    if (categoryType === 'beer') return ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl', '325ml Btl'];
+    if (categoryType === 'beer') return ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl'];
     return ['Q', 'P', 'N'];
   };
 
