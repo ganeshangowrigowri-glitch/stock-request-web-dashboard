@@ -12,7 +12,7 @@ import { saveAs } from 'file-saver';
 
 
 const QPN_COLS  = ['Q', 'P', 'N'];
-const BEER_COLS = ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl', '325ml Btl'];
+const BEER_COLS = ['625ml Btl', '500ml Cane', '330ml Cane', '500ml Btl'];
 const SHOP_ORDER = [
   'dimuthu', 'beragala', 'haputale', 'sagara', 'dayaraba',
   'ettampitiya', 'neluwa', 'ketawala', 'demodara',
