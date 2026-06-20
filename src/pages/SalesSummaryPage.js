@@ -135,19 +135,51 @@ useEffect(() => {
 
   const fetchSummary = async () => {
     if (!selectedCategory) return;
-    try { setLoading(true); setHasGenerated(true); const data = await getSalesSummary(selectedCategory, null, dateFrom, dateTo); setSummaryData(data); }
+        // No dates selected = don't fetch, show message
+    if (!dateFrom && !dateTo) {
+      setSummaryData([]);
+      setHasGenerated(true);
+      return;
+    }
+
+    try { 
+      setLoading(true); 
+      setHasGenerated(true); 
+      const effectiveDateFrom = dateFrom || dateTo;  
+      const data = await getSalesSummary(selectedCategory, null, effectiveDateFrom, dateTo); 
+      setSummaryData(data); 
+    }
     catch (error) { console.error(error); } finally { setLoading(false); }
   };
-
   const fetchApproved = async () => {
     if (!selectedCategory) return;
-    try { setApprovedLoading(true); setHasGenerated(true); const data = await getApprovedSummary(selectedCategory, null, dateFrom, dateTo); setApprovedData(data); }
+    // No dates selected = don't fetch, show message
+    if (!dateFrom && !dateTo) {
+      setSummaryData([]);
+      setHasGenerated(true);
+      return;
+    }
+    try { setApprovedLoading(true); 
+      setHasGenerated(true); 
+      const effectiveDateFrom = dateFrom || dateTo;  
+      const data = await getApprovedSummary(selectedCategory, null, dateFrom, dateTo);
+      setApprovedData(data); }
     catch (error) { console.error(error); } finally { setApprovedLoading(false); }
   };
 
   const fetchPresent = async () => {
     if (!selectedCategory) return;
-    try { setPresentLoading(true); setHasGenerated(true); const data = await getPresentSummary(selectedCategory, null, dateFrom, dateTo); setPresentData(data); }
+    // No dates selected = don't fetch, show message
+    if (!dateFrom && !dateTo) {
+      setSummaryData([]);
+      setHasGenerated(true);
+      return;
+    }
+    try { setPresentLoading(true); 
+    setHasGenerated(true); 
+    const effectiveDateFrom = dateFrom || dateTo; 
+    const data = await getPresentSummary(selectedCategory, null, dateFrom, dateTo); 
+    setPresentData(data); }
     catch (error) { console.error(error); } finally { setPresentLoading(false); }
   };
 
