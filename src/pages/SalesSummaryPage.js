@@ -450,7 +450,7 @@ const shops2 = selectedShops.length > 0
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell rowSpan={2} sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:160, position:'sticky', left:0, zIndex:3 }}>
+            <TableCell rowSpan={2} sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:160, position:'sticky', left:0, top:0, zIndex:4 }}>
                 Bar Name
               </TableCell>
                {brands.map(brand => (
