@@ -24,6 +24,8 @@ export default function RequestDetailPage() {
   const [detail, setDetail]           = useState(null);
   const [loading, setLoading]         = useState(true);
   const [approvedValues, setApprovedValues] = useState({});
+  const [presentValues, setPresentValues]   = useState({});
+  const [requestValues, setRequestValues]   = useState({});
   const [submitting, setSubmitting]   = useState(false);
   const [message, setMessage]         = useState('');
   const [brandsFromDB, setBrandsFromDB] = useState([]);
@@ -61,7 +63,24 @@ data.items.forEach(item => {
   };
 });
       
+      const initialPresent = {};
+      const initialRequest = {};
+      data.items.forEach(item => {
+        initialPresent[item.id] = {
+          present_1: item.present_1 || '', present_2: item.present_2 || '',
+          present_3: item.present_3 || '', present_4: item.present_4 || '',
+          present_5: item.present_5 || '',
+        };
+        initialRequest[item.id] = {
+          request_1: item.request_1 || '', request_2: item.request_2 || '',
+          request_3: item.request_3 || '', request_4: item.request_4 || '',
+          request_5: item.request_5 || '',
+        };
+      });
+
       setApprovedValues(initial);
+      setPresentValues(initialPresent);
+      setRequestValues(initialRequest);
     } catch (error) {
       console.error(error);
     } finally {
@@ -69,15 +88,18 @@ data.items.forEach(item => {
     }
   };
 
-  const handleApprove = async () => {
+    const handleApprove = async () => {
     try {
       setSubmitting(true);
-      const items = Object.entries(approvedValues).map(([itemId, vals]) => ({
-      id: parseInt(itemId),
-     ...Object.fromEntries(
-    Object.entries(vals).map(([k, v]) => [k, v === '' ? 0 : v])
-    ),
-   }));
+      const clean = (store, itemId) => Object.fromEntries(
+        Object.entries(store[itemId] || {}).map(([k, v]) => [k, v === '' ? 0 : v])
+      );
+      const items = Object.keys(approvedValues).map((itemId) => ({
+        id: parseInt(itemId),
+        ...clean(presentValues, itemId),
+        ...clean(requestValues, itemId),
+        ...clean(approvedValues, itemId),
+      }));
       
       await approveRequest(id, items);
       setMessage('Request approved successfully!');
@@ -384,27 +406,40 @@ const items = brandsFromDB.length > 0
                 {items.map((item, bi) => (
                   <TableRow key={item.id} sx={{ backgroundColor: bi%2===0?'white':'#f9fafb' }}>
                     <TableCell sx={{ fontWeight: 500, fontSize: 12 }}>{item.brand_name}</TableCell>
-                    {[item.present_1,item.present_2,item.present_3,item.present_4,item.present_5]
-                    .slice(0,colCount).map((v,i) => (
-                   <TableCell key={`p${i}`} align="center" 
-                   sx={{ fontSize: 12, color: v ? 'inherit' : '#bbb' }}>
-                  {v || '-'}
-                  </TableCell>
-                  ))}
+                                         {['present_1','present_2','present_3','present_4','present_5']
+                      .slice(0,colCount).map((key,i) => (
+                      <TableCell key={`p${i}`} align="center" sx={{ fontSize: 12 }}>
+                        <TextField size="small" type="number"
+                          value={presentValues[item.id]?.[key] ?? ''}
+                          onChange={(e) => setPresentValues(prev => ({
+                            ...prev,
+                            [item.id]: { ...prev[item.id], [key]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }
+                          }))}
+                          inputProps={{ min: 0, style: { textAlign:'center', padding:'4px', width:'50px', fontSize:12 } }}
+                          placeholder="-"
+                        />
+                      </TableCell>
+                    ))}
 
-                    {[item.request_1,item.request_2,item.request_3,item.request_4,item.request_5]
-                    .slice(0,colCount).map((v,i) => (
-                    <TableCell key={`r${i}`} align="center"
-                    sx={{ fontSize: 12, backgroundColor: 'rgba(26,58,92,0.04)', color: v ? 'inherit' : '#bbb' }}>
-                    {v || '-'}
-                   </TableCell>
+                    {['request_1','request_2','request_3','request_4','request_5']
+                      .slice(0,colCount).map((key,i) => (
+                      <TableCell key={`r${i}`} align="center" sx={{ backgroundColor: 'rgba(26,58,92,0.04)' }}>
+                        <TextField size="small" type="number"
+                          value={requestValues[item.id]?.[key] ?? ''}
+                          onChange={(e) => setRequestValues(prev => ({
+                            ...prev,
+                            [item.id]: { ...prev[item.id], [key]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }
+                          }))}
+                          inputProps={{ min: 0, style: { textAlign:'center', padding:'4px', width:'50px', fontSize:12 } }}
+                          placeholder="-"
+                        />
+                      </TableCell>
                     ))}
                     {['approved_1','approved_2','approved_3','approved_4','approved_5']
                       .slice(0,colCount).map((key,i) => (
                       <TableCell key={`a${i}`} align="center"
                         sx={{ backgroundColor: 'rgba(46,125,50,0.06)' }}>
-                        {req?.status === 'pending' ? (
-                          <TextField size="small" type="number"
+                        <TextField size="small" type="number"
                           value={approvedValues[item.id]?.[key] ?? ''}
                           onChange={(e) => setApprovedValues(prev => ({
                            ...prev,
@@ -413,11 +448,6 @@ const items = brandsFromDB.length > 0
                            inputProps={{ min: 0, style: { textAlign:'center', padding:'4px', width:'50px', fontSize:12 } }}
                            placeholder="-"
                           />
-                        ) : (
-                          <Typography fontSize={12} color={item[key] ? "success.main" : "text.disabled"} fontWeight={600}>
-                         {item[key] || '-'}
-                         </Typography>
-                        )}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -428,18 +458,20 @@ const items = brandsFromDB.length > 0
         </CardContent>
       </Card>
 
-      {req?.status === 'pending' && (
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+       <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+        {req?.status === 'pending' && (
           <Button variant="outlined" color="error" onClick={handleReject}
             disabled={submitting} sx={{ fontWeight: 600 }}>
             Reject Request
           </Button>
-          <Button variant="contained" onClick={handleApprove}
-            disabled={submitting} sx={{ backgroundColor: '#1a5c3d', fontWeight: 600 }}>
-            {submitting ? <CircularProgress size={20} color="inherit" /> : 'Approve Request'}
-          </Button>
-        </Box>
-      )}
+        )}
+        <Button variant="contained" onClick={handleApprove}
+          disabled={submitting} sx={{ backgroundColor: '#1a5c3d', fontWeight: 600 }}>
+          {submitting
+            ? <CircularProgress size={20} color="inherit" />
+            : (req?.status === 'pending' ? 'Approve Request' : 'Re-Approve / Update')}
+        </Button>
+      </Box>
     </Box>
   );
 }

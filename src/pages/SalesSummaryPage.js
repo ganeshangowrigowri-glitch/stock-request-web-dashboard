@@ -220,7 +220,7 @@ const shops1 = selectedShops.length > 0
   const allBrands1 = [...new Set(summaryData.map(d => d.brand_name))];
   const brands1 = sortBrands(allBrands1, selectedCategory);
   const getRow1    = (shop, brand) => summaryData.find(d => d.shop_name === shop && d.brand_name === brand);
-  const getQty1    = (shop, brand, ci) => { const row = getRow1(shop,brand); if(!row) return 0; return parseInt(row[['qty_1','qty_2','qty_3','qty_4','qty_5'][ci]])||0; };
+    const getQty1    = (shop, brand, ci) => { const row = getRow1(shop,brand); if(!row) return 0; return parseInt(row[['qty_1','qty_2','qty_3','qty_4','qty_5'][ci]])||0; };
   const getBrandTotal1  = (shop, brand) => { const row = getRow1(shop,brand); return row ? parseInt(row.total_requested)||0 : 0; };
   const getShopTotal1   = (shop) => brands1.reduce((sum,brand) => sum+getBrandTotal1(shop,brand), 0);
   const getShopAmount1  = (shop) => summaryData.filter(d=>d.shop_name===shop).reduce((sum,d)=>sum+parseFloat(d.total_amount||0),0);
@@ -426,13 +426,13 @@ const shops2 = selectedShops.length > 0
       </CardContent>
     </Card>
   );
-
-  const renderTable = (
+    const renderTable = (
     scrollRef, shops, brands, getQty, getBrandColTotal,
     getShopTotal, getShopAmount, getColTotal,
     getNetTotal, getNetAmount,
     headerColor, subColor
   ) => (
+
     <Box>
       <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'center', mb:0.5, px:0.5 }}>
         <Button onClick={()=>scroll(scrollRef,-1)} variant="contained" size="small"
@@ -446,28 +446,28 @@ const shops2 = selectedShops.length > 0
         </Button>
       </Box>
 
-      <TableContainer ref={scrollRef} sx={{ overflowX:'auto' }}>
+       <TableContainer ref={scrollRef} sx={{ overflowX:'auto', overflowY:'auto', maxHeight:600 }}>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell rowSpan={2} sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:160, position:'sticky', left:0, zIndex:3 }}>
                 Bar Name
               </TableCell>
-              {brands.map(brand => (
+               {brands.map(brand => (
                 <TableCell key={brand} colSpan={columns.length} align="center"
-                  sx={{ backgroundColor:subColor, color:'white', fontWeight:600, fontSize:11, borderLeft:`1px solid ${headerColor}` }}>
+                  sx={{ backgroundColor:subColor, color:'white', fontWeight:600, fontSize:11, borderLeft:`1px solid ${headerColor}`, position:'sticky', top:0, zIndex:2 }}>
                   {brand}
                 </TableCell>
               ))}
-              <TableCell rowSpan={2} align="center" sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:80 }}>Shop Total</TableCell>
-              <TableCell rowSpan={2} align="center" sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:130 }}>Amount (Rs.)</TableCell>
+           <TableCell rowSpan={2} align="center" sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:80, position:'sticky', top:0, zIndex:2 }}>Shop Total</TableCell>
+           <TableCell rowSpan={2} align="center" sx={{ backgroundColor:headerColor, color:'white', fontWeight:600, minWidth:130, position:'sticky', top:0, zIndex:2 }}>Amount (Rs.)</TableCell>
             </TableRow>
             <TableRow>
               {brands.map(brand => (
                 <React.Fragment key={brand}>
                   {columns.map((col, i) => (
                     <TableCell key={`${brand}-${col}`} align="center"
-                      sx={{ backgroundColor:subColor, color:'white', fontSize:10, fontWeight:500, minWidth:55, borderLeft:i===0?`1px solid ${headerColor}`:'none' }}>
+                      sx={{ backgroundColor:subColor, color:'white', fontSize:10, fontWeight:500, minWidth:55, borderLeft:i===0?`1px solid ${headerColor}`:'none', position:'sticky', top:31, zIndex:2 }}>
                       {col}
                     </TableCell>
                   ))}
@@ -481,10 +481,11 @@ const shops2 = selectedShops.length > 0
                 <TableCell sx={{ fontWeight:500, fontSize:12, position:'sticky', left:0, backgroundColor:si%2===0?'white':'#f9fafb', zIndex:1, borderRight:`2px solid ${headerColor}` }}>
                   {shop}
                 </TableCell>
-                {brands.map(brand => (
+                 {brands.map(brand => (
                   <React.Fragment key={brand}>
                     {columns.map((col, ci) => (
-                      <TableCell key={`${shop}-${brand}-${ci}`} align="center" sx={{ fontSize:12, borderLeft:ci===0?'1px solid #e0e0e0':'none' }}>
+                      <TableCell key={`${shop}-${brand}-${ci}`} align="center"
+                        sx={{ fontSize:12, borderLeft:ci===0?'1px solid #e0e0e0':'none' }}>
                         {getQty(shop, brand, ci) || '-'}
                       </TableCell>
                     ))}
@@ -685,7 +686,7 @@ const shops2 = selectedShops.length > 0
               <Typography variant="h6" fontWeight={600} color="#1a3a5c" mb={1} textAlign="center">{selectedCategoryName} — Request Order Summary</Typography>
               <Typography variant="body2" color="text.secondary" mb={1} textAlign="center">{dateRangeLabel()}</Typography>
               {renderQPNSummary(getColTotal1, '#1a3a5c')}
-              <Box mt={1.5}>{renderTable(scrollRef1,shops1,brands1,getQty1,getBrandColTotal1,getShopTotal1,getShopAmount1,getColTotal1,getNetTotal1,getNetAmount1,'#1a3a5c','#2a5278')}</Box>
+          <Box mt={1.5}>{renderTable(scrollRef1,shops1,brands1,getQty1,getBrandColTotal1,getShopTotal1,getShopAmount1,getColTotal1,getNetTotal1,getNetAmount1,'#1a3a5c','#2a5278')}</Box>
             </CardContent></Card>
           : renderEmptyState(hasGenerated)
       )}
